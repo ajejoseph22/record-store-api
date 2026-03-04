@@ -6,13 +6,13 @@ import { MongooseModule, getConnectionToken } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { RecordModule } from '../src/api/record/record.module';
 import { OrderModule } from '../src/api/order/order.module';
-import { CacheHelperModule } from '../src/api/common/utils/cache/cache-helper.module';
+import { CacheHelperModule } from '../src/api/cache/cache-helper.module';
 import { RecordFormat, RecordCategory } from '../src/api/record/record.enum';
 import {
   startTestDb,
   stopTestDb,
   clearCollections,
-} from '../src/test/setup-test-db';
+} from './helpers/setup-test-db';
 
 describe('RecordController (e2e)', () => {
   let app: INestApplication;

@@ -1,4 +1,8 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, FilterQuery, Model, Types } from 'mongoose';
 import { Order } from './order.schema';
@@ -6,7 +10,7 @@ import { Record } from '../record/record.schema';
 import { CreateOrderRequestDTO } from './dtos/create-order.request.dto';
 import { OrderResponseDTO } from './dtos/order.response.dto';
 import { PaginatedResponseDTO } from '../common/dtos/paginated.response.dto';
-import { CacheHelper } from '../common/utils/cache/cache.helper';
+import { CacheHelper } from '../cache/cache.helper';
 import { encodeCursor, decodeCursor } from '../common/utils/cursor';
 
 export interface FindAllOrderOptions {
@@ -21,6 +25,8 @@ export class OrderService {
   private static readonly MAX_PAGE_SIZE = 200;
   private static readonly ORDERS_NAMESPACE = 'orders';
   private static readonly RECORDS_NAMESPACE = 'records';
+
+  private readonly logger = new Logger(OrderService.name);
 
   constructor(
     @InjectModel('Order') private readonly orderModel: Model<Order>,
@@ -40,6 +46,9 @@ export class OrderService {
         );
 
         if (!record) {
+          this.logger.warn(
+            `Order rejected: recordId=${dto.recordId} qty=${dto.qty} reason=not_found_or_insufficient_stock`,
+          );
           throw new UnprocessableEntityException(
             'Record not found or insufficient stock',
           );
@@ -52,6 +61,9 @@ export class OrderService {
         return order;
       });
 
+      this.logger.log(
+        `Order created: orderId=${result._id} recordId=${dto.recordId} qty=${dto.qty}`,
+      );
       await this.cacheHelper.bumpVersion(OrderService.ORDERS_NAMESPACE);
       await this.cacheHelper.bumpVersion(OrderService.RECORDS_NAMESPACE);
       return OrderResponseDTO.from(result);

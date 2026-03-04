@@ -6,13 +6,13 @@ import { OrderService } from './order.service';
 import { OrderSchema } from './order.schema';
 import { RecordSchema } from '../record/record.schema';
 import { RecordFormat, RecordCategory } from '../record/record.enum';
-import { CacheHelper } from '../common/utils/cache/cache.helper';
+import { CacheHelper } from '../cache/cache.helper';
 import { decodeCursor } from '../common/utils/cursor';
 import {
   startTestDb,
   stopTestDb,
   clearCollections,
-} from '../../test/setup-test-db';
+} from '../../../test/helpers/setup-test-db';
 
 describe('OrderService', () => {
   let module: TestingModule;

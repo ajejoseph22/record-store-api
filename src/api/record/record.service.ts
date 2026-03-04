@@ -1,4 +1,11 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
 import { Record } from './record.schema';
@@ -6,7 +13,7 @@ import { CreateRecordRequestDTO } from './dtos/create-record.request.dto';
 import { UpdateRecordRequestDTO } from './dtos/update-record.request.dto';
 import { RecordResponseDTO } from './dtos/record.response.dto';
 import { PaginatedResponseDTO } from '../common/dtos/paginated.response.dto';
-import { CacheHelper } from '../common/utils/cache/cache.helper';
+import { CacheHelper } from '../cache/cache.helper';
 import { encodeCursor, decodeCursor } from '../common/utils/cursor';
 
 export interface FindAllOptions {
@@ -29,6 +36,7 @@ export class RecordService {
   private static readonly DEFAULT_PAGE_SIZE = 50;
   private static readonly MAX_PAGE_SIZE = 200;
   static readonly NAMESPACE = 'records';
+  private readonly logger = new Logger(RecordService.name);
 
   constructor(
     @InjectModel('Record') private readonly recordModel: Model<Record>,
@@ -38,21 +46,30 @@ export class RecordService {
   async createRecord(dto: CreateRecordRequestDTO): Promise<Record> {
     const tracklist = await this.getTracklistByMbid(dto.mbid);
 
-    const record = await this.recordModel.create({
-      artist: dto.artist,
-      album: dto.album,
-      price: dto.price,
-      qty: dto.qty,
-      format: dto.format,
-      category: dto.category,
-      mbid: dto.mbid,
-      tracklist,
-      artistNormalized: dto.artist.trim().toLowerCase(),
-      albumNormalized: dto.album.trim().toLowerCase(),
-    });
+    try {
+      const record = await this.recordModel.create({
+        artist: dto.artist,
+        album: dto.album,
+        price: dto.price,
+        qty: dto.qty,
+        format: dto.format,
+        category: dto.category,
+        mbid: dto.mbid,
+        tracklist,
+        artistNormalized: dto.artist.trim().toLowerCase(),
+        albumNormalized: dto.album.trim().toLowerCase(),
+      });
 
-    await this.cacheHelper.bumpVersion(RecordService.NAMESPACE);
-    return record;
+      await this.cacheHelper.bumpVersion(RecordService.NAMESPACE);
+      return record;
+    } catch (err) {
+      if ((err as { code?: number }).code === 11000) {
+        throw new ConflictException(
+          `A record by "${dto.artist}" - "${dto.album}" (${dto.format}) already exists`,
+        );
+      }
+      throw err;
+    }
   }
 
   async updateRecord(id: string, dto: UpdateRecordRequestDTO): Promise<Record> {
@@ -71,7 +88,7 @@ export class RecordService {
         .lean();
 
       if (!existing) {
-        throw new InternalServerErrorException('Record not found');
+        throw new NotFoundException(`Record with id "${id}" not found`);
       }
 
       if (setFields.mbid !== existing.mbid) {
@@ -81,18 +98,27 @@ export class RecordService {
       }
     }
 
-    const updated = await this.recordModel.findOneAndUpdate(
-      { _id: id },
-      { $set: setFields },
-      { new: true },
-    );
+    try {
+      const updated = await this.recordModel.findOneAndUpdate(
+        { _id: id },
+        { $set: setFields },
+        { new: true },
+      );
 
-    if (!updated) {
-      throw new InternalServerErrorException('Record not found');
+      if (!updated) {
+        throw new NotFoundException(`Record with id "${id}" not found`);
+      }
+
+      await this.cacheHelper.bumpVersion(RecordService.NAMESPACE);
+      return updated;
+    } catch (err) {
+      if ((err as { code?: number }).code === 11000) {
+        throw new ConflictException(
+          'This update would create a duplicate artist/album/format combination',
+        );
+      }
+      throw err;
     }
-
-    await this.cacheHelper.bumpVersion(RecordService.NAMESPACE);
-    return updated;
   }
 
   async findAll(
@@ -186,6 +212,7 @@ export class RecordService {
     const cacheKey = `mb:${normalizedMbid}`;
     const cached = await this.cacheHelper.get<string[]>(cacheKey);
     if (cached) {
+      this.logger.debug(`Tracklist cache hit for mbid=${normalizedMbid}`);
       return cached;
     }
 
@@ -194,6 +221,10 @@ export class RecordService {
     const timeout = setTimeout(
       () => abortController.abort(),
       RecordService.REQUEST_TIMEOUT_MS,
+    );
+
+    this.logger.debug(
+      `Fetching tracklist from MusicBrainz for mbid=${normalizedMbid}`,
     );
 
     try {
@@ -206,7 +237,22 @@ export class RecordService {
       });
 
       if (!response.ok) {
-        return [];
+        this.logger.warn(
+          `MusicBrainz returned ${response.status} for mbid=${normalizedMbid}`,
+        );
+        if (response.status === 400) {
+          throw new BadRequestException(
+            `"${normalizedMbid}" is not a valid MusicBrainz ID`,
+          );
+        }
+        if (response.status === 404) {
+          throw new NotFoundException(
+            `No release found on MusicBrainz for MBID "${normalizedMbid}"`,
+          );
+        }
+        throw new BadGatewayException(
+          'Unable to fetch tracklist from MusicBrainz. Please try again later',
+        );
       }
 
       const json = await response.json();
@@ -219,14 +265,27 @@ export class RecordService {
           }
         }
       }
+
+      this.logger.debug(
+        `Fetched ${tracklist.length} tracks from MusicBrainz for mbid=${normalizedMbid}`,
+      );
       await this.cacheHelper.set(
         cacheKey,
         tracklist,
         RecordService.MB_CACHE_TTL,
       );
       return tracklist;
-    } catch {
-      return [];
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      if (err instanceof NotFoundException) throw err;
+      if (err instanceof BadGatewayException) throw err;
+      this.logger.warn(
+        `MusicBrainz request failed for mbid=${normalizedMbid}`,
+        (err as Error).stack,
+      );
+      throw new BadGatewayException(
+        'Unable to reach MusicBrainz. Please try again later',
+      );
     } finally {
       clearTimeout(timeout);
     }

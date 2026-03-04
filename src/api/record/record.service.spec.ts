@@ -1,17 +1,22 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MongooseModule, getConnectionToken } from '@nestjs/mongoose';
 import { Connection, Types } from 'mongoose';
-import { InternalServerErrorException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { RecordService } from './record.service';
 import { RecordSchema } from './record.schema';
 import { RecordFormat, RecordCategory } from './record.enum';
-import { CacheHelper } from '../common/utils/cache/cache.helper';
+import { CacheHelper } from '../cache/cache.helper';
 import { decodeCursor } from '../common/utils/cursor';
 import {
   startTestDb,
   stopTestDb,
   clearCollections,
-} from '../../test/setup-test-db';
+} from '../../../test/helpers/setup-test-db';
 
 describe('RecordService', () => {
   let module: TestingModule;
@@ -123,30 +128,39 @@ describe('RecordService', () => {
       ]);
     });
 
-    it('should return empty tracklist when musicbrainz responds with non-200', async () => {
-      fetchMock.mockResolvedValue({
-        ok: false,
-        json: jest.fn(),
-      });
+    it('should throw NotFoundException when musicbrainz returns 404', async () => {
+      fetchMock.mockResolvedValue({ ok: false, status: 404 });
 
-      const tracklist = await service.getTracklistByMbid(
-        'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',
-      );
-
-      expect(tracklist).toEqual([]);
+      await expect(
+        service.getTracklistByMbid('b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d'),
+      ).rejects.toThrow(NotFoundException);
     });
 
-    it('should return empty tracklist when fetch throws', async () => {
+    it('should throw BadRequestException when musicbrainz returns 400', async () => {
+      fetchMock.mockResolvedValue({ ok: false, status: 400 });
+
+      await expect(service.getTracklistByMbid('not-a-uuid')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadGatewayException when musicbrainz returns other errors', async () => {
+      fetchMock.mockResolvedValue({ ok: false, status: 503 });
+
+      await expect(
+        service.getTracklistByMbid('b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d'),
+      ).rejects.toThrow(BadGatewayException);
+    });
+
+    it('should throw BadGatewayException when fetch throws', async () => {
       fetchMock.mockRejectedValue(new Error('network issue'));
 
-      const tracklist = await service.getTracklistByMbid(
-        'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',
-      );
-
-      expect(tracklist).toEqual([]);
+      await expect(
+        service.getTracklistByMbid('b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d'),
+      ).rejects.toThrow(BadGatewayException);
     });
 
-    it('should return empty tracklist when request times out', async () => {
+    it('should throw BadGatewayException when request times out', async () => {
       jest.useFakeTimers();
 
       fetchMock.mockImplementation(
@@ -162,8 +176,7 @@ describe('RecordService', () => {
       await Promise.resolve();
       jest.advanceTimersByTime(5000);
 
-      const tracklist = await promise;
-      expect(tracklist).toEqual([]);
+      await expect(promise).rejects.toThrow(BadGatewayException);
 
       jest.useRealTimers();
     });
@@ -261,9 +274,12 @@ describe('RecordService', () => {
       expect(result.tracklist).toEqual(['Come Together', 'Something']);
     });
 
-    it('should enforce unique constraint on artist + album + format', async () => {
+    it('should throw ConflictException on duplicate artist + album + format', async () => {
       await service.createRecord(baseRecord);
-      await expect(service.createRecord(baseRecord)).rejects.toThrow();
+
+      await expect(service.createRecord(baseRecord)).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('should bump records cache version', async () => {
@@ -288,6 +304,11 @@ describe('RecordService', () => {
     });
 
     it('should re-fetch tracklist when mbid changes', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ media: [] }),
+      });
+
       const created = await service.createRecord({
         ...baseRecord,
         mbid: 'old-mbid',
@@ -309,6 +330,11 @@ describe('RecordService', () => {
     });
 
     it('should not re-fetch tracklist when mbid is unchanged', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ media: [] }),
+      });
+
       const created = await service.createRecord({
         ...baseRecord,
         mbid: 'same-mbid',
@@ -321,11 +347,11 @@ describe('RecordService', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('should throw when record not found', async () => {
+    it('should throw NotFoundException when record not found', async () => {
       const fakeId = new Types.ObjectId().toString();
 
       await expect(service.updateRecord(fakeId, { price: 50 })).rejects.toThrow(
-        InternalServerErrorException,
+        NotFoundException,
       );
     });
 
