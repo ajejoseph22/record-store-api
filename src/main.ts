@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { AppConfig } from './app.config';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'; // Import Swagger
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
@@ -14,13 +14,16 @@ async function bootstrap() {
     }),
   );
   // Swagger configuration
-  const config = new DocumentBuilder()
-    .setTitle('Record API')
-    .setDescription('The record management API')
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Record Store API')
+    .setDescription(
+      'API for managing a record store inventory and orders. Supports CRUD operations on records with MusicBrainz integration for tracklist metadata, and order management with transactional stock control.',
+    )
+    .setVersion('1.0')
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('swagger', app, document);
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('swagger', app, swaggerDocument);
 
   await app.listen(AppConfig.port);
 }

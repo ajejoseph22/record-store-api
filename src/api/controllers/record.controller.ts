@@ -11,12 +11,19 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Record } from '../schemas/record.schema';
 import { FilterQuery, Model } from 'mongoose';
-import { ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CreateRecordRequestDTO } from '../dtos/create-record.request.dto';
 import { RecordCategory, RecordFormat } from '../schemas/record.enum';
 import { UpdateRecordRequestDTO } from '../dtos/update-record.request.dto';
 import { RecordService } from '../services/record.service';
 
+@ApiTags('Records')
 @Controller('records')
 export class RecordController {
   private static readonly DEFAULT_PAGE_SIZE = 50;
@@ -33,7 +40,11 @@ export class RecordController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new record' })
-  @ApiResponse({ status: 201, description: 'Record successfully created' })
+  @ApiResponse({
+    status: 201,
+    description: 'Record successfully created',
+    type: Record,
+  })
   @ApiResponse({ status: 400, description: 'Bad Request' })
   async create(@Body() request: CreateRecordRequestDTO): Promise<Record> {
     const tracklist = await this.recordService.getTracklistByMbid(request.mbid);
@@ -52,7 +63,12 @@ export class RecordController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Update an existing record' })
-  @ApiResponse({ status: 200, description: 'Record updated successfully' })
+  @ApiParam({ name: 'id', description: 'Record ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Record updated successfully',
+    type: Record,
+  })
   @ApiResponse({ status: 500, description: 'Cannot find record to update' })
   async update(
     @Param('id') id: string,

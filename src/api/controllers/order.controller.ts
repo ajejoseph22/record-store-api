@@ -7,11 +7,12 @@ import {
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model } from 'mongoose';
-import { ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Order } from '../schemas/order.schema';
 import { Record } from '../schemas/record.schema';
 import { CreateOrderRequestDTO } from '../dtos/create-order.request.dto';
 
+@ApiTags('Orders')
 @Controller('orders')
 export class OrderController {
   constructor(
@@ -22,7 +23,11 @@ export class OrderController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new order' })
-  @ApiResponse({ status: 201, description: 'Order successfully created' })
+  @ApiResponse({
+    status: 201,
+    description: 'Order successfully created',
+    type: Order,
+  })
   @ApiResponse({ status: 400, description: 'Bad Request' })
   @ApiResponse({
     status: 500,
