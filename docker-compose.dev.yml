@@ -1,0 +1,39 @@
+services:
+  mongo-seed:
+    image: mongo:latest
+    restart: 'no'
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./data.json:/data.json:ro
+    command: >
+      mongosh mongodb://mongodb:27017/records?replicaSet=rs0 --eval
+      '
+      const data = JSON.parse(fs.readFileSync("/data.json", "utf8"));
+      if (db.records.countDocuments() === 0) {
+        const docs = data.map(r => ({
+          ...r,
+          artistNormalized: r.artist.trim().toLowerCase(),
+          albumNormalized: r.album.trim().toLowerCase(),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }));
+        db.records.insertMany(docs);
+        print("Seeded " + docs.length + " records.");
+      } else {
+        print("Records already exist, skipping seed.");
+      }
+      '
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src:/app/src
+    environment:
+      LOG_LEVEL: debug
+    depends_on:
+      mongo-seed:
+        condition: service_completed_successfully
