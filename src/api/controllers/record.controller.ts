@@ -63,14 +63,21 @@ export class RecordController {
       throw new InternalServerErrorException('Record not found');
     }
 
+    if (updateRecordDto.mbid && updateRecordDto.mbid !== record.mbid) {
+      const tracklist = await this.recordService.getTracklistByMbid(
+        updateRecordDto.mbid,
+      );
+      record.tracklist = tracklist;
+    }
+
     Object.assign(record, updateRecordDto);
 
-    const updated = await this.recordModel.updateOne(record);
+    const updated = await record.save();
     if (!updated) {
       throw new InternalServerErrorException('Failed to update record');
     }
 
-    return record;
+    return updated;
   }
 
   @Get()

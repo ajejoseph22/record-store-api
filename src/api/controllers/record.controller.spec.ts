@@ -203,4 +203,65 @@ describe('RecordController', () => {
     expect(skip).toHaveBeenCalledWith(0);
     expect(limit).toHaveBeenCalledWith(200);
   });
+
+  it('should update record and re-fetch tracklist when mbid changes', async () => {
+    const save = jest.fn();
+    const existingRecord = {
+      _id: '1',
+      artist: 'The Beatles',
+      album: 'Abbey Road',
+      mbid: 'old-mbid',
+      tracklist: ['Old Track'],
+      save,
+    };
+    save.mockResolvedValue(existingRecord);
+
+    jest
+      .spyOn(recordModel, 'findById')
+      .mockResolvedValue(existingRecord as any);
+    recordService.getTracklistByMbid.mockResolvedValueOnce([
+      'Come Together',
+      'Something',
+    ]);
+
+    const result = await recordController.update('1', {
+      mbid: 'new-mbid',
+    });
+
+    expect(recordService.getTracklistByMbid).toHaveBeenCalledWith('new-mbid');
+    expect(existingRecord.tracklist).toEqual(['Come Together', 'Something']);
+    expect(save).toHaveBeenCalled();
+    expect(result).toBe(existingRecord);
+  });
+
+  it('should update record without re-fetching tracklist when mbid is unchanged', async () => {
+    const save = jest.fn();
+    const existingRecord = {
+      _id: '1',
+      artist: 'The Beatles',
+      album: 'Abbey Road',
+      mbid: 'same-mbid',
+      tracklist: ['Existing Track'],
+      save,
+    };
+    save.mockResolvedValue(existingRecord);
+
+    jest
+      .spyOn(recordModel, 'findById')
+      .mockResolvedValue(existingRecord as any);
+
+    await recordController.update('1', { mbid: 'same-mbid', price: 30 });
+
+    expect(recordService.getTracklistByMbid).not.toHaveBeenCalled();
+    expect(existingRecord.tracklist).toEqual(['Existing Track']);
+    expect(save).toHaveBeenCalled();
+  });
+
+  it('should throw when record is not found for update', async () => {
+    jest.spyOn(recordModel, 'findById').mockResolvedValue(null);
+
+    await expect(
+      recordController.update('nonexistent', { price: 30 }),
+    ).rejects.toThrow('Record not found');
+  });
 });
