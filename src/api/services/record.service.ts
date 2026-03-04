@@ -8,6 +8,7 @@ export class RecordService {
 
   async getTracklistByMbid(mbid?: string): Promise<string[]> {
     const normalizedMbid = mbid?.trim();
+
     if (!normalizedMbid) {
       return [];
     }
@@ -24,6 +25,7 @@ export class RecordService {
         headers: { Accept: 'application/xml' },
         signal: abortController.signal,
       });
+
       if (!response.ok) {
         return [];
       }

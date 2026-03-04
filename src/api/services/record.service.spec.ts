@@ -88,4 +88,101 @@ describe('RecordService', () => {
 
     expect(tracklist).toEqual([]);
   });
+
+  it('should return empty tracklist when request times out', async () => {
+    jest.useFakeTimers();
+
+    fetchMock.mockImplementation(
+      (_url: string, options: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          options.signal.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          );
+        }),
+    );
+
+    const promise = service.getTracklistByMbid('some-mbid');
+    jest.advanceTimersByTime(5000);
+
+    const tracklist = await promise;
+    expect(tracklist).toEqual([]);
+
+    jest.useRealTimers();
+  });
+
+  it('should skip tracks with no title element', async () => {
+    const xml = `
+      <metadata>
+        <release>
+          <medium-list>
+            <medium>
+              <track-list>
+                <track>
+                  <recording>
+                    <title>Valid Track</title>
+                  </recording>
+                </track>
+                <track>
+                  <recording></recording>
+                </track>
+              </track-list>
+            </medium>
+          </medium-list>
+        </release>
+      </metadata>
+    `;
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      text: jest.fn().mockResolvedValue(xml),
+    });
+
+    const tracklist = await service.getTracklistByMbid('some-mbid');
+    expect(tracklist).toEqual(['Valid Track']);
+  });
+
+  it('should return empty tracklist when xml has no track nodes', async () => {
+    const xml = `<metadata><release><medium-list></medium-list></release></metadata>`;
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      text: jest.fn().mockResolvedValue(xml),
+    });
+
+    const tracklist = await service.getTracklistByMbid('some-mbid');
+    expect(tracklist).toEqual([]);
+  });
+
+  it('should decode decimal numeric xml entities', async () => {
+    const xml = `
+      <metadata>
+        <release>
+          <medium-list>
+            <medium>
+              <track-list>
+                <track>
+                  <recording>
+                    <title>Rock &#38; Roll &#60;Live&#62;</title>
+                  </recording>
+                </track>
+                <track>
+                  <recording>
+                    <title>Caf&#xe9; &#x26; Bar</title>
+                  </recording>
+                </track>
+              </track-list>
+            </medium>
+          </medium-list>
+        </release>
+      </metadata>
+    `;
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      text: jest.fn().mockResolvedValue(xml),
+    });
+
+    const tracklist = await service.getTracklistByMbid('some-mbid');
+    expect(tracklist).toEqual(['Rock & Roll <Live>', 'Caf\u00e9 & Bar']);
+  });
 });
