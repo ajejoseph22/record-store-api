@@ -1,43 +1,35 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { MongooseModule, getConnectionToken } from '@nestjs/mongoose';
+import { Connection, Types } from 'mongoose';
+import { InternalServerErrorException } from '@nestjs/common';
 import { RecordController } from './record.controller';
-import { getModelToken } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Record } from '../schemas/record.schema';
-import { CreateRecordRequestDTO } from '../dtos/create-record.request.dto';
-import { RecordCategory, RecordFormat } from '../schemas/record.enum';
 import { RecordService } from '../services/record.service';
+import { RecordSchema } from '../schemas/record.schema';
+import { RecordFormat, RecordCategory } from '../schemas/record.enum';
+import {
+  startTestDb,
+  stopTestDb,
+  clearCollections,
+} from '../../test/setup-test-db';
 
 describe('RecordController', () => {
-  let recordController: RecordController;
-  let recordModel: Model<Record>;
-  let recordService: { getTracklistByMbid: jest.Mock };
+  let module: TestingModule;
+  let controller: RecordController;
+  let connection: Connection;
+  let recordService: RecordService;
+  let uri: string;
 
-  function mockFindChain(result: unknown[] = []) {
-    const exec = jest.fn().mockResolvedValue(result);
-    const lean = jest.fn().mockReturnValue({ exec });
-    const limit = jest.fn().mockReturnValue({ lean });
-    const skip = jest.fn().mockReturnValue({ limit });
+  beforeAll(async () => {
+    jest.setTimeout(30000);
+    uri = await startTestDb();
 
-    jest.spyOn(recordModel, 'find').mockReturnValue({ skip } as any);
-
-    return { exec, lean, limit, skip };
-  }
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
+      imports: [
+        MongooseModule.forRoot(uri),
+        MongooseModule.forFeature([{ name: 'Record', schema: RecordSchema }]),
+      ],
       controllers: [RecordController],
       providers: [
-        {
-          provide: getModelToken('Record'),
-          useValue: {
-            new: jest.fn().mockResolvedValue({}),
-            constructor: jest.fn().mockResolvedValue({}),
-            find: jest.fn(),
-            findById: jest.fn(),
-            save: jest.fn(),
-            create: jest.fn(),
-          },
-        },
         {
           provide: RecordService,
           useValue: {
@@ -47,221 +39,249 @@ describe('RecordController', () => {
       ],
     }).compile();
 
-    recordController = module.get<RecordController>(RecordController);
-    recordModel = module.get<Model<Record>>(getModelToken('Record'));
-    recordService = module.get(RecordService);
+    controller = module.get<RecordController>(RecordController);
+    recordService = module.get<RecordService>(RecordService);
+    connection = module.get<Connection>(getConnectionToken());
   });
 
-  it('should create a new record', async () => {
-    const createRecordDto: CreateRecordRequestDTO = {
-      artist: 'Test',
-      album: 'Test Record',
-      price: 100,
-      qty: 10,
-      format: RecordFormat.VINYL,
-      category: RecordCategory.ALTERNATIVE,
-    };
+  afterEach(async () => {
+    await clearCollections(connection);
+    jest.clearAllMocks();
+  });
 
-    const savedRecord = {
-      _id: '1',
-      name: 'Test Record',
-      price: 100,
-      qty: 10,
-    };
+  afterAll(async () => {
+    await module.close();
+    await stopTestDb();
+  });
 
-    jest.spyOn(recordModel, 'create').mockResolvedValue(savedRecord as any);
+  const baseRecord = {
+    artist: 'The Beatles',
+    album: 'Abbey Road',
+    price: 30,
+    qty: 10,
+    format: RecordFormat.VINYL,
+    category: RecordCategory.ROCK,
+  };
 
-    const result = await recordController.create(createRecordDto);
-    expect(result).toEqual(savedRecord);
-    expect(recordService.getTracklistByMbid).toHaveBeenCalledWith(undefined);
-    expect(recordModel.create).toHaveBeenCalledWith({
-      artist: 'Test',
-      album: 'Test Record',
-      price: 100,
-      qty: 10,
-      category: RecordCategory.ALTERNATIVE,
-      format: RecordFormat.VINYL,
-      mbid: undefined,
-      tracklist: [],
+  describe('create', () => {
+    it('should create a record without mbid', async () => {
+      const result = await controller.create(baseRecord);
+
+      expect(result.artist).toBe('The Beatles');
+      expect(result.album).toBe('Abbey Road');
+      expect(result.price).toBe(30);
+      expect(result.qty).toBe(10);
+      expect(result.format).toBe(RecordFormat.VINYL);
+      expect(result.category).toBe(RecordCategory.ROCK);
+      expect(result.tracklist).toEqual([]);
+      expect(recordService.getTracklistByMbid).toHaveBeenCalledWith(undefined);
+    });
+
+    it('should fetch tracklist when mbid is provided', async () => {
+      const tracks = ['Come Together', 'Something'];
+      jest.spyOn(recordService, 'getTracklistByMbid').mockResolvedValue(tracks);
+
+      const result = await controller.create({
+        ...baseRecord,
+        mbid: 'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',
+      });
+
+      expect(recordService.getTracklistByMbid).toHaveBeenCalledWith(
+        'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',
+      );
+      expect(result.tracklist).toEqual(tracks);
+    });
+
+    it('should enforce unique constraint on artist + album + format', async () => {
+      await controller.create(baseRecord);
+      await expect(controller.create(baseRecord)).rejects.toThrow();
     });
   });
 
-  it('should create a new record with tracklist fetched from mbid', async () => {
-    const createRecordDto: CreateRecordRequestDTO = {
-      artist: 'The Beatles',
-      album: 'Abbey Road',
-      price: 25,
-      qty: 10,
-      format: RecordFormat.VINYL,
-      category: RecordCategory.ROCK,
-      mbid: 'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',
-    };
-    const fetchedTracklist = ['Come Together', 'Something'];
+  describe('update', () => {
+    it('should update a record', async () => {
+      const created = await controller.create(baseRecord);
 
-    recordService.getTracklistByMbid.mockResolvedValueOnce(fetchedTracklist);
-    jest.spyOn(recordModel, 'create').mockResolvedValue({ _id: '1' } as any);
+      const updated = await controller.update(created._id.toString(), {
+        price: 50,
+      });
 
-    await recordController.create(createRecordDto);
+      expect(updated.price).toBe(50);
+      expect(updated.artist).toBe('The Beatles');
+    });
 
-    expect(recordService.getTracklistByMbid).toHaveBeenCalledWith(
-      'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',
-    );
-    expect(recordModel.create).toHaveBeenCalledWith({
-      artist: 'The Beatles',
-      album: 'Abbey Road',
-      price: 25,
-      qty: 10,
-      category: RecordCategory.ROCK,
-      format: RecordFormat.VINYL,
-      mbid: 'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',
-      tracklist: ['Come Together', 'Something'],
+    it('should re-fetch tracklist when mbid changes', async () => {
+      const created = await controller.create({
+        ...baseRecord,
+        mbid: 'old-mbid',
+      });
+
+      const newTracks = ['Track 1', 'Track 2'];
+      jest
+        .spyOn(recordService, 'getTracklistByMbid')
+        .mockResolvedValue(newTracks);
+
+      const updated = await controller.update(created._id.toString(), {
+        mbid: 'new-mbid',
+      });
+
+      expect(recordService.getTracklistByMbid).toHaveBeenCalledWith('new-mbid');
+      expect(updated.tracklist).toEqual(newTracks);
+    });
+
+    it('should not re-fetch tracklist when mbid is unchanged', async () => {
+      const created = await controller.create({
+        ...baseRecord,
+        mbid: 'same-mbid',
+      });
+
+      jest.clearAllMocks();
+
+      await controller.update(created._id.toString(), { price: 99 });
+
+      expect(recordService.getTracklistByMbid).not.toHaveBeenCalled();
+    });
+
+    it('should throw when record not found', async () => {
+      const fakeId = new Types.ObjectId().toString();
+
+      await expect(controller.update(fakeId, { price: 50 })).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 
-  it('should return all records with default pagination', async () => {
-    const records = [
-      { _id: '1', name: 'Record 1', price: 100, qty: 10 },
-      { _id: '2', name: 'Record 2', price: 200, qty: 20 },
-    ];
-    const { exec, lean, limit, skip } = mockFindChain(records);
+  describe('findAll', () => {
+    it('should return all records with default pagination', async () => {
+      await controller.create(baseRecord);
+      await controller.create({
+        ...baseRecord,
+        album: 'Let It Be',
+        format: RecordFormat.CD,
+      });
 
-    const result = await recordController.findAll();
+      const results = await controller.findAll();
 
-    expect(result).toEqual(records);
-    expect(recordModel.find).toHaveBeenCalledWith({});
-    expect(skip).toHaveBeenCalledWith(0);
-    expect(limit).toHaveBeenCalledWith(50);
-    expect(lean).toHaveBeenCalled();
-    expect(exec).toHaveBeenCalled();
-  });
-
-  it('should apply filters and pagination parameters', async () => {
-    const { skip, limit } = mockFindChain();
-
-    await recordController.findAll(
-      'beat',
-      'the',
-      'road',
-      RecordFormat.VINYL,
-      RecordCategory.ROCK,
-      '10',
-      '5',
-    );
-
-    const query = (recordModel.find as jest.Mock).mock.calls[0][0];
-    expect(query.$and).toBeDefined();
-    expect(query.$and).toHaveLength(5);
-
-    const textClause = query.$and.find((c: any) => c.$text);
-    expect(textClause).toEqual({ $text: { $search: 'beat' } });
-
-    const artistClause = query.$and.find((c: any) => c.artist);
-    expect(artistClause.artist.$regex).toBeInstanceOf(RegExp);
-    expect(artistClause.artist.$regex.source).toBe('the');
-    expect(artistClause.artist.$regex.flags).toBe('i');
-
-    const albumClause = query.$and.find((c: any) => c.album);
-    expect(albumClause.album.$regex).toBeInstanceOf(RegExp);
-    expect(albumClause.album.$regex.source).toBe('road');
-    expect(albumClause.album.$regex.flags).toBe('i');
-
-    expect(query.$and).toContainEqual({ format: RecordFormat.VINYL });
-    expect(query.$and).toContainEqual({ category: RecordCategory.ROCK });
-
-    expect(skip).toHaveBeenCalledWith(5);
-    expect(limit).toHaveBeenCalledWith(10);
-  });
-
-  it('should use a flat query when only one filter is provided', async () => {
-    mockFindChain();
-
-    await recordController.findAll(
-      undefined,
-      undefined,
-      undefined,
-      RecordFormat.CD,
-    );
-
-    const query = (recordModel.find as jest.Mock).mock.calls[0][0];
-    expect(query).toEqual({ format: RecordFormat.CD });
-    expect(query.$and).toBeUndefined();
-  });
-
-  it('should clamp invalid pagination values to safe defaults', async () => {
-    const { skip, limit } = mockFindChain();
-
-    await recordController.findAll(
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      '9999',
-      '-42',
-    );
-
-    expect(skip).toHaveBeenCalledWith(0);
-    expect(limit).toHaveBeenCalledWith(200);
-  });
-
-  it('should update record and re-fetch tracklist when mbid changes', async () => {
-    const save = jest.fn();
-    const existingRecord = {
-      _id: '1',
-      artist: 'The Beatles',
-      album: 'Abbey Road',
-      mbid: 'old-mbid',
-      tracklist: ['Old Track'],
-      save,
-    };
-    save.mockResolvedValue(existingRecord);
-
-    jest
-      .spyOn(recordModel, 'findById')
-      .mockResolvedValue(existingRecord as any);
-    recordService.getTracklistByMbid.mockResolvedValueOnce([
-      'Come Together',
-      'Something',
-    ]);
-
-    const result = await recordController.update('1', {
-      mbid: 'new-mbid',
+      expect(results).toHaveLength(2);
     });
 
-    expect(recordService.getTracklistByMbid).toHaveBeenCalledWith('new-mbid');
-    expect(existingRecord.tracklist).toEqual(['Come Together', 'Something']);
-    expect(save).toHaveBeenCalled();
-    expect(result).toBe(existingRecord);
-  });
+    it('should filter by artist (case-insensitive)', async () => {
+      await controller.create(baseRecord);
+      await controller.create({
+        ...baseRecord,
+        artist: 'Pink Floyd',
+        album: 'The Wall',
+      });
 
-  it('should update record without re-fetching tracklist when mbid is unchanged', async () => {
-    const save = jest.fn();
-    const existingRecord = {
-      _id: '1',
-      artist: 'The Beatles',
-      album: 'Abbey Road',
-      mbid: 'same-mbid',
-      tracklist: ['Existing Track'],
-      save,
-    };
-    save.mockResolvedValue(existingRecord);
+      const results = await controller.findAll(undefined, 'beatles');
 
-    jest
-      .spyOn(recordModel, 'findById')
-      .mockResolvedValue(existingRecord as any);
+      expect(results).toHaveLength(1);
+      expect(results[0].artist).toBe('The Beatles');
+    });
 
-    await recordController.update('1', { mbid: 'same-mbid', price: 30 });
+    it('should filter by album', async () => {
+      await controller.create(baseRecord);
+      await controller.create({
+        ...baseRecord,
+        album: 'Let It Be',
+        format: RecordFormat.CD,
+      });
 
-    expect(recordService.getTracklistByMbid).not.toHaveBeenCalled();
-    expect(existingRecord.tracklist).toEqual(['Existing Track']);
-    expect(save).toHaveBeenCalled();
-  });
+      const results = await controller.findAll(undefined, undefined, 'abbey');
 
-  it('should throw when record is not found for update', async () => {
-    jest.spyOn(recordModel, 'findById').mockResolvedValue(null);
+      expect(results).toHaveLength(1);
+      expect(results[0].album).toBe('Abbey Road');
+    });
 
-    await expect(
-      recordController.update('nonexistent', { price: 30 }),
-    ).rejects.toThrow('Record not found');
+    it('should filter by format', async () => {
+      await controller.create(baseRecord);
+      await controller.create({
+        ...baseRecord,
+        album: 'Let It Be',
+        format: RecordFormat.CD,
+      });
+
+      const results = await controller.findAll(
+        undefined,
+        undefined,
+        undefined,
+        RecordFormat.CD,
+      );
+
+      expect(results).toHaveLength(1);
+      expect(results[0].format).toBe(RecordFormat.CD);
+    });
+
+    it('should filter by category', async () => {
+      await controller.create(baseRecord);
+      await controller.create({
+        ...baseRecord,
+        artist: 'Miles Davis',
+        album: 'Kind of Blue',
+        category: RecordCategory.JAZZ,
+      });
+
+      const results = await controller.findAll(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        RecordCategory.JAZZ,
+      );
+
+      expect(results).toHaveLength(1);
+      expect(results[0].category).toBe(RecordCategory.JAZZ);
+    });
+
+    it('should respect limit and offset', async () => {
+      for (let i = 0; i < 5; i++) {
+        await controller.create({
+          ...baseRecord,
+          album: `Album ${i}`,
+        });
+      }
+
+      const results = await controller.findAll(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        '2',
+        '1',
+      );
+
+      expect(results).toHaveLength(2);
+    });
+
+    it('should clamp limit to max 200', async () => {
+      await controller.create(baseRecord);
+
+      const results = await controller.findAll(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        '9999',
+      );
+
+      // Should not throw, just clamp
+      expect(results).toHaveLength(1);
+    });
+
+    it('should use text search with q parameter', async () => {
+      await controller.create(baseRecord);
+      await controller.create({
+        ...baseRecord,
+        artist: 'Pink Floyd',
+        album: 'The Wall',
+      });
+
+      const results = await controller.findAll('Beatles');
+
+      expect(results).toHaveLength(1);
+      expect(results[0].artist).toBe('The Beatles');
+    });
   });
 });

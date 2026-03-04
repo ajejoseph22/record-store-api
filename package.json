@@ -1,8 +1,6 @@
 {
-  "name": "nestjs-hostelworld-challenge",
+  "name": "record-store-api",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
@@ -49,6 +47,7 @@
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",
     "jest": "^29.7.0",
+    "mongodb-memory-server": "^11.0.1",
     "prettier": "^3.0.0",
     "source-map-support": "^0.5.21",
     "supertest": "^6.3.3",
