@@ -20,11 +20,13 @@
     "setup:db": "ts-node -r tsconfig-paths/register setup-db.ts"
   },
   "dependencies": {
+    "@nestjs/cache-manager": "^3.1.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/mongoose": "^11.0.1",
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/swagger": "^11.0.6",
+    "cache-manager": "^7.2.8",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "dotenv": "^16.4.7",

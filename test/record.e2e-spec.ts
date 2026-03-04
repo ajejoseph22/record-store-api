@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { CacheModule } from '@nestjs/cache-manager';
 import * as request from 'supertest';
 import { MongooseModule, getConnectionToken } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { RecordModule } from '../src/api/record.module';
 import { OrderModule } from '../src/api/order.module';
+import { CacheHelperModule } from '../src/api/cache/cache-helper.module';
 import { RecordFormat, RecordCategory } from '../src/api/schemas/record.enum';
 import {
   startTestDb,
@@ -21,7 +23,13 @@ describe('RecordController (e2e)', () => {
     uri = await startTestDb();
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [MongooseModule.forRoot(uri), RecordModule, OrderModule],
+      imports: [
+        CacheModule.register({ isGlobal: true, ttl: 60000, max: 500 }),
+        CacheHelperModule,
+        MongooseModule.forRoot(uri),
+        RecordModule,
+        OrderModule,
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();

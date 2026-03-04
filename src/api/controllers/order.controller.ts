@@ -11,14 +11,19 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Order } from '../schemas/order.schema';
 import { Record } from '../schemas/record.schema';
 import { CreateOrderRequestDTO } from '../dtos/create-order.request.dto';
+import { CacheHelper } from '../cache/cache.helper';
 
 @ApiTags('Orders')
 @Controller('orders')
 export class OrderController {
+  private static readonly ORDERS_NAMESPACE = 'orders';
+  private static readonly RECORDS_NAMESPACE = 'records';
+
   constructor(
     @InjectModel('Order') private readonly orderModel: Model<Order>,
     @InjectModel('Record') private readonly recordModel: Model<Record>,
     @InjectConnection() private readonly connection: Connection,
+    private readonly cacheHelper: CacheHelper,
   ) {}
 
   @Post()
@@ -36,7 +41,7 @@ export class OrderController {
   async create(@Body() dto: CreateOrderRequestDTO): Promise<Order> {
     const session = await this.connection.startSession();
     try {
-      return await session.withTransaction(async () => {
+      const result = await session.withTransaction(async () => {
         const record = await this.recordModel.findOneAndUpdate(
           { _id: dto.recordId, qty: { $gte: dto.qty } },
           { $inc: { qty: -dto.qty } },
@@ -55,6 +60,10 @@ export class OrderController {
         );
         return order;
       });
+
+      await this.cacheHelper.bumpVersion(OrderController.ORDERS_NAMESPACE);
+      await this.cacheHelper.bumpVersion(OrderController.RECORDS_NAMESPACE);
+      return result;
     } finally {
       await session.endSession();
     }
@@ -64,6 +73,18 @@ export class OrderController {
   @ApiOperation({ summary: 'Get all orders' })
   @ApiResponse({ status: 200, description: 'List of orders', type: [Order] })
   async findAll(): Promise<Order[]> {
-    return await this.orderModel.find().lean().exec();
+    const version = await this.cacheHelper.getVersion(
+      OrderController.ORDERS_NAMESPACE,
+    );
+    const cacheKey = `orders:v${version}`;
+
+    const cached = await this.cacheHelper.get<Order[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const orders = await this.orderModel.find().lean().exec();
+    await this.cacheHelper.set(cacheKey, orders);
+    return orders;
   }
 }

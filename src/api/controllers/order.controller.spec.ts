@@ -6,6 +6,7 @@ import { OrderController } from './order.controller';
 import { OrderSchema } from '../schemas/order.schema';
 import { RecordSchema } from '../schemas/record.schema';
 import { RecordFormat, RecordCategory } from '../schemas/record.enum';
+import { CacheHelper } from '../cache/cache.helper';
 import {
   startTestDb,
   stopTestDb,
@@ -16,6 +17,7 @@ describe('OrderController', () => {
   let module: TestingModule;
   let orderController: OrderController;
   let connection: Connection;
+  let cacheHelper: CacheHelper;
   let uri: string;
 
   beforeAll(async () => {
@@ -31,14 +33,28 @@ describe('OrderController', () => {
         ]),
       ],
       controllers: [OrderController],
+      providers: [
+        {
+          provide: CacheHelper,
+          useValue: {
+            get: jest.fn().mockResolvedValue(undefined),
+            set: jest.fn().mockResolvedValue(undefined),
+            del: jest.fn().mockResolvedValue(undefined),
+            bumpVersion: jest.fn().mockResolvedValue(1),
+            getVersion: jest.fn().mockResolvedValue(0),
+          },
+        },
+      ],
     }).compile();
 
     orderController = module.get<OrderController>(OrderController);
+    cacheHelper = module.get<CacheHelper>(CacheHelper);
     connection = module.get<Connection>(getConnectionToken());
   });
 
   afterEach(async () => {
     await clearCollections(connection);
+    jest.clearAllMocks();
   });
 
   afterAll(async () => {
@@ -111,5 +127,17 @@ describe('OrderController', () => {
     expect(orders).toHaveLength(2);
     expect(orders[0].qty).toBe(2);
     expect(orders[1].qty).toBe(3);
+  });
+
+  it('should bump both orders and records cache versions on create', async () => {
+    const { insertedId } = await createRecord({ qty: 10 });
+
+    await orderController.create({
+      recordId: insertedId.toString(),
+      qty: 1,
+    });
+
+    expect(cacheHelper.bumpVersion).toHaveBeenCalledWith('orders');
+    expect(cacheHelper.bumpVersion).toHaveBeenCalledWith('records');
   });
 });
