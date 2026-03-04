@@ -1,105 +1,60 @@
-# Record Store Challenge API
-## Description
+# Record Store API
 
-This is a **NestJS** application starter with MongoDB integration. If necessary, it provides a script to boot a Mongo emulator for Docker. This setup includes end-to-end tests, unit tests, test coverage, linting, and database setup with data from `data.json`.
+NestJS REST API for managing a vinyl/CD/cassette record store. Supports inventory management, order placement with transactional stock decrement, full-text search, cursor-based pagination, and MusicBrainz tracklist integration.
 
-## Installation
+## Prerequisites
 
-### Install dependencies:
+- **Node.js** >= 20 (optional, via docker)
+- **MongoDB** >= 5 (replica set required for transactions). Optional, via Docker.
+- **Docker & Docker Compose** 
+
+## Quick Start
+
+### Docker (recommended)
 
 ```bash
-$ npm install
-````
-
-### Docker for MongoDB Emulator
-To use the MongoDB Emulator, you can start it using Docker:
+npm run docker:up
 ```
-npm run mongo:start
-```
-This will start a MongoDB instance running on your local machine. You can customize the settings in the Docker setup by modifying the docker-compose-mongo.yml if necessary. In the current configuration, you will have a MongoDB container running, which is accessible at localhost:27017.
-This mongo url will be necessary on the .env file, with example as follows:
 
-```
-MONGO_URL=mongodb://localhost:27017/records
-```
-This will point your application to a local MongoDB instance.
+Starts MongoDB (replica set), initializes the replica, and builds/runs the API. The app is available at `http://localhost:3000`.
 
-### MongoDB Data Setup
-The data.json file contains example records to seed your database. The setup script will import the records from this file into MongoDB.
+Seed the database:
 
-To set up the database with the example records:
-
-```
+```bash
 npm run setup:db
 ```
-This will prompt the user to cleanup (Y/N) existing collection before importing data.json
 
+### Local Development (without Docker)
 
-#### data.json Example
-Here’s an example of the data.json file that contains records:
-```
-[
-    {
-        "artist": "Foo Fighters",
-        "album": "Foo Fighers",
-        "price": 8,
-        "qty": 10,
-        "format": "CD",
-        "category": "Rock",
-        "mbid": "d6591261-daaa-4bb2-81b6-544e499da727"
-  },
-  {
-        "artist": "The Cure",
-        "album": "Disintegration",
-        "price": 23,
-        "qty": 1,
-        "format": "Vinyl",
-        "category": "Alternative",
-        "mbid": "11af85e2-c272-4c59-a902-47f75141dc97"
-  },
-]
-```
+Requires a running MongoDB replica set.
 
-### Running the App
-#### Development Mode
-To run the application in development mode (with hot reloading):
-
-```
+```bash
+cp .env.sample .env          # set MONGO_URL
+npm install
+npm run setup:db             # seed data from data.json
 npm run start:dev
 ```
-#### Production Mode
-To build and run the app in production mode:
 
-```
-npm run start:prod
-```
+#### Environment Variables
 
-### Tests
-#### Run Unit Tests
-To run unit tests:
+| Variable    | Required | Default | Notes                                              |
+|-------------|----------|---------|----------------------------------------------------|
+| `MONGO_URL` | Yes      | —       | Must point to a replica set (transactions require it) |
+| `PORT`      | No       | `3000`  | HTTP listen port                                   |
 
-```
-npm run test
-```
-To run unit tests with code coverage:
+## API
 
-```
-npm run test:cov
-```
-This will show you how much of your code is covered by the unit tests.
-#### Run End-to-End Tests
-To run end-to-end tests:
-```
-npm run test:e2e
-```
-Run Tests with Coverage
+Swagger UI is available at `http://localhost:3000/swagger` when the app is running.
 
+## Scripts
 
-Run Linting
-To check if your code passes ESLint checks:
-
-```
-npm run lint
-```
-This command will show you any linting issues with your code.
-
+| Script         | Description                           |
+|----------------|---------------------------------------|
+| `docker:up`    | Start all services via Docker Compose |
+| `start:dev`    | Dev server with hot reload            |
+| `start:prod`   | Run compiled app from `dist/`         |
+| `setup:db`     | Seed database from `data.json`        |
+| `test`         | Unit + integration tests              |
+| `test:e2e`     | End-to-end tests                      |
+| `test:cov`     | Unit + integration tests with coverage|
+| `lint`         | ESLint with auto-fix                  |
