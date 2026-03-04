@@ -68,7 +68,7 @@ export class OrderService {
     }
   }
 
-  async findAll(
+  async getAll(
     options: GetOrdersRequestDTO = {},
   ): Promise<PaginatedResponseDTO<OrderResponseDTO>> {
     const { limit, cursor } = options;

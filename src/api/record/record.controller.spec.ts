@@ -23,7 +23,7 @@ describe('RecordController', () => {
             updateRecord: jest
               .fn()
               .mockResolvedValue({ _id: '1', price: 50, tracklist: [] }),
-            findAll: jest
+            getAll: jest
               .fn()
               .mockResolvedValue(PaginatedResponseDTO.create([], null, false)),
           },
@@ -73,8 +73,8 @@ describe('RecordController', () => {
     });
   });
 
-  describe('findAll', () => {
-    it('should delegate to recordService.findAll with query DTO', async () => {
+  describe('getAll', () => {
+    it('should delegate to recordService.getAll with query DTO', async () => {
       const query = {
         q: 'q',
         artist: 'artist',

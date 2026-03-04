@@ -146,14 +146,14 @@ describe('OrderService', () => {
     });
   });
 
-  describe('findAll', () => {
+  describe('getAll', () => {
     it('should return paginated orders', async () => {
       const { insertedId } = await createRecord({ qty: 10 });
 
       await service.createOrder({ recordId: insertedId.toString(), qty: 2 });
       await service.createOrder({ recordId: insertedId.toString(), qty: 3 });
 
-      const result = await service.findAll();
+      const result = await service.getAll();
 
       expect(result.data).toHaveLength(2);
       expect(result.hasMore).toBe(false);
@@ -167,13 +167,13 @@ describe('OrderService', () => {
         await service.createOrder({ recordId: insertedId.toString(), qty: 1 });
       }
 
-      const page1 = await service.findAll({ limit: '2' });
+      const page1 = await service.getAll({ limit: '2' });
 
       expect(page1.data).toHaveLength(2);
       expect(page1.hasMore).toBe(true);
       expect(page1.nextCursor).toBeDefined();
 
-      const page2 = await service.findAll({
+      const page2 = await service.getAll({
         limit: '2',
         cursor: page1.nextCursor!,
       });
@@ -190,7 +190,7 @@ describe('OrderService', () => {
         await service.createOrder({ recordId: insertedId.toString(), qty: 1 });
       }
 
-      const page = await service.findAll({ limit: '2' });
+      const page = await service.getAll({ limit: '2' });
 
       expect(page.nextCursor).toBeDefined();
       expect(Types.ObjectId.isValid(page.nextCursor!)).toBe(false);
@@ -207,7 +207,7 @@ describe('OrderService', () => {
       };
       (cacheHelper.get as jest.Mock).mockResolvedValueOnce(cachedPage);
 
-      const result = await service.findAll();
+      const result = await service.getAll();
 
       expect(result).toEqual(cachedPage);
       expect(cacheHelper.set).not.toHaveBeenCalled();
@@ -217,7 +217,7 @@ describe('OrderService', () => {
       const { insertedId } = await createRecord({ qty: 10 });
       await service.createOrder({ recordId: insertedId.toString(), qty: 1 });
 
-      const result = await service.findAll();
+      const result = await service.getAll();
 
       expect(result.data[0]).toHaveProperty('id');
       expect(result.data[0]).toHaveProperty('recordId');

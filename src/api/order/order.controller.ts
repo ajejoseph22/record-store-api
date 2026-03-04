@@ -26,9 +26,9 @@ export class OrderController {
   @Get()
   @ApiOperation({ summary: 'Get all orders' })
   @ApiResponse({ status: 200, description: 'Paginated list of orders' })
-  async findAll(
+  async getAll(
     @Query() query: GetOrdersRequestDTO,
   ): Promise<PaginatedResponseDTO<OrderResponseDTO>> {
-    return this.orderService.findAll(query);
+    return this.orderService.getAll(query);
   }
 }

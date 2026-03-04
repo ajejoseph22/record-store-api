@@ -45,5 +45,6 @@ services:
         condition: service_completed_successfully
     environment:
       MONGO_URL: mongodb://mongodb:27017/records?replicaSet=rs0
+      PORT: ${PORT:-3000}
     ports:
-      - '3000:3000'
+      - '${PORT:-3000}:${PORT:-3000}'

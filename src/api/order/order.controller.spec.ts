@@ -21,7 +21,7 @@ describe('OrderController', () => {
               createdAt: '2024-01-01',
               updatedAt: '2024-01-01',
             }),
-            findAll: jest
+            getAll: jest
               .fn()
               .mockResolvedValue(PaginatedResponseDTO.create([], null, false)),
           },
@@ -46,20 +46,20 @@ describe('OrderController', () => {
     });
   });
 
-  describe('findAll', () => {
-    it('should delegate to orderService.findAll with query DTO', async () => {
-      await controller.findAll({ limit: '10', cursor: 'abc123' });
+  describe('getAll', () => {
+    it('should delegate to orderService.getAll with query DTO', async () => {
+      await controller.getAll({ limit: '10', cursor: 'abc123' });
 
-      expect(orderService.findAll).toHaveBeenCalledWith({
+      expect(orderService.getAll).toHaveBeenCalledWith({
         limit: '10',
         cursor: 'abc123',
       });
     });
 
     it('should pass empty object for omitted params', async () => {
-      await controller.findAll({});
+      await controller.getAll({});
 
-      expect(orderService.findAll).toHaveBeenCalledWith({});
+      expect(orderService.getAll).toHaveBeenCalledWith({});
     });
   });
 });

@@ -367,9 +367,9 @@ describe('RecordService', () => {
     });
   });
 
-  // --- findAll tests ---
+  // --- getAll tests ---
 
-  describe('findAll', () => {
+  describe('getAll', () => {
     it('should return all records with default pagination', async () => {
       await service.createRecord(baseRecord);
       await service.createRecord({
