@@ -15,25 +15,29 @@ import { ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { CreateRecordRequestDTO } from '../dtos/create-record.request.dto';
 import { RecordCategory, RecordFormat } from '../schemas/record.enum';
 import { UpdateRecordRequestDTO } from '../dtos/update-record.request.dto';
+import { RecordService } from '../services/record.service';
 
 @Controller('records')
 export class RecordController {
   private static readonly DEFAULT_PAGE_SIZE = 50;
   private static readonly MAX_PAGE_SIZE = 200;
 
+  static escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   constructor(
     @InjectModel('Record') private readonly recordModel: Model<Record>,
+    private readonly recordService: RecordService,
   ) {}
-
-  private static escapeRegex(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
 
   @Post()
   @ApiOperation({ summary: 'Create a new record' })
   @ApiResponse({ status: 201, description: 'Record successfully created' })
   @ApiResponse({ status: 400, description: 'Bad Request' })
   async create(@Body() request: CreateRecordRequestDTO): Promise<Record> {
+    const tracklist = await this.recordService.getTracklistByMbid(request.mbid);
+
     return await this.recordModel.create({
       artist: request.artist,
       album: request.album,
@@ -42,6 +46,7 @@ export class RecordController {
       format: request.format,
       category: request.category,
       mbid: request.mbid,
+      tracklist,
     });
   }
 
@@ -78,8 +83,7 @@ export class RecordController {
   @ApiQuery({
     name: 'q',
     required: false,
-    description:
-      'Search query (search across multiple fields like artist, album, category, etc.)',
+    description: 'Full-text search query across artist, album, and category',
     type: String,
   })
   @ApiQuery({
@@ -133,16 +137,8 @@ export class RecordController {
 
     const normalizedQ = q?.trim();
     if (normalizedQ) {
-      const searchRegex = new RegExp(
-        RecordController.escapeRegex(normalizedQ),
-        'i',
-      );
       conditions.push({
-        $or: [
-          { artist: searchRegex },
-          { album: searchRegex },
-          { category: searchRegex },
-        ],
+        $text: { $search: normalizedQ },
       });
     }
 
@@ -179,9 +175,7 @@ export class RecordController {
     }
 
     const filters: FilterQuery<Record> =
-      conditions.length > 1
-        ? { $and: conditions }
-        : conditions[0] ?? {};
+      conditions.length > 1 ? { $and: conditions } : (conditions[0] ?? {});
 
     const parsedLimit = Number.parseInt(limit ?? '', 10);
     const parsedOffset = Number.parseInt(offset ?? '', 10);

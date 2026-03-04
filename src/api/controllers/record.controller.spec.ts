@@ -5,10 +5,12 @@ import { Model } from 'mongoose';
 import { Record } from '../schemas/record.schema';
 import { CreateRecordRequestDTO } from '../dtos/create-record.request.dto';
 import { RecordCategory, RecordFormat } from '../schemas/record.enum';
+import { RecordService } from '../services/record.service';
 
 describe('RecordController', () => {
   let recordController: RecordController;
   let recordModel: Model<Record>;
+  let recordService: { getTracklistByMbid: jest.Mock };
 
   function mockFindChain(result: unknown[] = []) {
     const exec = jest.fn().mockResolvedValue(result);
@@ -36,11 +38,18 @@ describe('RecordController', () => {
             create: jest.fn(),
           },
         },
+        {
+          provide: RecordService,
+          useValue: {
+            getTracklistByMbid: jest.fn().mockResolvedValue([]),
+          },
+        },
       ],
     }).compile();
 
     recordController = module.get<RecordController>(RecordController);
     recordModel = module.get<Model<Record>>(getModelToken('Record'));
+    recordService = module.get(RecordService);
   });
 
   it('should create a new record', async () => {
@@ -64,6 +73,7 @@ describe('RecordController', () => {
 
     const result = await recordController.create(createRecordDto);
     expect(result).toEqual(savedRecord);
+    expect(recordService.getTracklistByMbid).toHaveBeenCalledWith(undefined);
     expect(recordModel.create).toHaveBeenCalledWith({
       artist: 'Test',
       album: 'Test Record',
@@ -71,6 +81,40 @@ describe('RecordController', () => {
       qty: 10,
       category: RecordCategory.ALTERNATIVE,
       format: RecordFormat.VINYL,
+      mbid: undefined,
+      tracklist: [],
+    });
+  });
+
+  it('should create a new record with tracklist fetched from mbid', async () => {
+    const createRecordDto: CreateRecordRequestDTO = {
+      artist: 'The Beatles',
+      album: 'Abbey Road',
+      price: 25,
+      qty: 10,
+      format: RecordFormat.VINYL,
+      category: RecordCategory.ROCK,
+      mbid: 'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',
+    };
+    const fetchedTracklist = ['Come Together', 'Something'];
+
+    recordService.getTracklistByMbid.mockResolvedValueOnce(fetchedTracklist);
+    jest.spyOn(recordModel, 'create').mockResolvedValue({ _id: '1' } as any);
+
+    await recordController.create(createRecordDto);
+
+    expect(recordService.getTracklistByMbid).toHaveBeenCalledWith(
+      'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',
+    );
+    expect(recordModel.create).toHaveBeenCalledWith({
+      artist: 'The Beatles',
+      album: 'Abbey Road',
+      price: 25,
+      qty: 10,
+      category: RecordCategory.ROCK,
+      format: RecordFormat.VINYL,
+      mbid: 'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',
+      tracklist: ['Come Together', 'Something'],
     });
   });
 
@@ -108,19 +152,18 @@ describe('RecordController', () => {
     expect(query.$and).toBeDefined();
     expect(query.$and).toHaveLength(5);
 
-    const orClause = query.$and.find((c: any) => c.$or);
-    expect(orClause.$or).toHaveLength(3);
-    expect(orClause.$or[0].artist).toBeInstanceOf(RegExp);
+    const textClause = query.$and.find((c: any) => c.$text);
+    expect(textClause).toEqual({ $text: { $search: 'beat' } });
 
-    const artistClause = query.$and.find(
-      (c: any) => c.artist && !c.$or,
-    );
+    const artistClause = query.$and.find((c: any) => c.artist);
     expect(artistClause.artist.$regex).toBeInstanceOf(RegExp);
     expect(artistClause.artist.$regex.source).toBe('the');
+    expect(artistClause.artist.$regex.flags).toBe('i');
 
     const albumClause = query.$and.find((c: any) => c.album);
     expect(albumClause.album.$regex).toBeInstanceOf(RegExp);
     expect(albumClause.album.$regex.source).toBe('road');
+    expect(albumClause.album.$regex.flags).toBe('i');
 
     expect(query.$and).toContainEqual({ format: RecordFormat.VINYL });
     expect(query.$and).toContainEqual({ category: RecordCategory.ROCK });
