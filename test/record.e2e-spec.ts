@@ -4,10 +4,10 @@ import { CacheModule } from '@nestjs/cache-manager';
 import * as request from 'supertest';
 import { MongooseModule, getConnectionToken } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
-import { RecordModule } from '../src/api/record.module';
-import { OrderModule } from '../src/api/order.module';
-import { CacheHelperModule } from '../src/api/cache/cache-helper.module';
-import { RecordFormat, RecordCategory } from '../src/api/schemas/record.enum';
+import { RecordModule } from '../src/api/record/record.module';
+import { OrderModule } from '../src/api/order/order.module';
+import { CacheHelperModule } from '../src/api/common/utils/cache/cache-helper.module';
+import { RecordFormat, RecordCategory } from '../src/api/record/record.enum';
 import {
   startTestDb,
   stopTestDb,
@@ -62,6 +62,7 @@ describe('RecordController (e2e)', () => {
       })
       .expect(201);
 
+    expect(response.body).toHaveProperty('id');
     expect(response.body).toHaveProperty('artist', 'The Beatles');
     expect(response.body).toHaveProperty('album', 'Abbey Road');
   });
@@ -83,7 +84,40 @@ describe('RecordController (e2e)', () => {
       .get('/records?artist=The Fake Band')
       .expect(200);
 
-    expect(response.body.length).toBe(1);
-    expect(response.body[0]).toHaveProperty('artist', 'The Fake Band');
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0]).toHaveProperty('artist', 'The Fake Band');
+    expect(response.body).toHaveProperty('nextCursor');
+    expect(response.body).toHaveProperty('hasMore', false);
+  });
+
+  it('should paginate records with cursor', async () => {
+    for (let i = 0; i < 3; i++) {
+      await request(app.getHttpServer())
+        .post('/records')
+        .send({
+          artist: `Artist ${i}`,
+          album: `Album ${i}`,
+          price: 25,
+          qty: 10,
+          format: RecordFormat.VINYL,
+          category: RecordCategory.ROCK,
+        })
+        .expect(201);
+    }
+
+    const page1 = await request(app.getHttpServer())
+      .get('/records?limit=2')
+      .expect(200);
+
+    expect(page1.body.data).toHaveLength(2);
+    expect(page1.body.hasMore).toBe(true);
+    expect(page1.body.nextCursor).toBeDefined();
+
+    const page2 = await request(app.getHttpServer())
+      .get(`/records?limit=2&cursor=${page1.body.nextCursor}`)
+      .expect(200);
+
+    expect(page2.body.data).toHaveLength(1);
+    expect(page2.body.hasMore).toBe(false);
   });
 });

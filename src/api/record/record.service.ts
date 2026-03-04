@@ -1,10 +1,13 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, Model } from 'mongoose';
-import { Record } from '../schemas/record.schema';
-import { CreateRecordRequestDTO } from '../dtos/create-record.request.dto';
-import { UpdateRecordRequestDTO } from '../dtos/update-record.request.dto';
-import { CacheHelper } from '../cache/cache.helper';
+import { FilterQuery, Model, Types } from 'mongoose';
+import { Record } from './record.schema';
+import { CreateRecordRequestDTO } from './dtos/create-record.request.dto';
+import { UpdateRecordRequestDTO } from './dtos/update-record.request.dto';
+import { RecordResponseDTO } from './dtos/record.response.dto';
+import { PaginatedResponseDTO } from '../common/dtos/paginated.response.dto';
+import { CacheHelper } from '../common/utils/cache/cache.helper';
+import { encodeCursor, decodeCursor } from '../common/utils/cursor';
 
 export interface FindAllOptions {
   q?: string;
@@ -13,7 +16,7 @@ export interface FindAllOptions {
   format?: string;
   category?: string;
   limit?: string;
-  offset?: string;
+  cursor?: string;
 }
 
 @Injectable()
@@ -22,6 +25,7 @@ export class RecordService {
     'https://musicbrainz.org/ws/2/release';
   private static readonly REQUEST_TIMEOUT_MS = 5000;
   private static readonly MB_CACHE_TTL = 86400000; // 24 hours
+  private static readonly PAGINATION_CACHE_TTL = 300_000; // 5 minutes
   private static readonly DEFAULT_PAGE_SIZE = 50;
   private static readonly MAX_PAGE_SIZE = 200;
   static readonly NAMESPACE = 'records';
@@ -91,8 +95,10 @@ export class RecordService {
     return updated;
   }
 
-  async findAll(options: FindAllOptions = {}): Promise<Record[]> {
-    const { q, artist, album, format, category, limit, offset } = options;
+  async findAll(
+    options: FindAllOptions = {},
+  ): Promise<PaginatedResponseDTO<RecordResponseDTO>> {
+    const { q, artist, album, format, category, limit, cursor } = options;
     const conditions: FilterQuery<Record>[] = [];
 
     const normalizedQ = q?.trim();
@@ -118,36 +124,56 @@ export class RecordService {
       conditions.push({ category });
     }
 
+    if (cursor) {
+      const decoded = decodeCursor(cursor);
+      if (decoded?._id && Types.ObjectId.isValid(decoded._id as string)) {
+        conditions.push({
+          _id: { $gt: new Types.ObjectId(decoded._id as string) },
+        });
+      }
+    }
+
     const filters: FilterQuery<Record> =
       conditions.length > 1 ? { $and: conditions } : (conditions[0] ?? {});
 
     const parsedLimit = Number.parseInt(limit ?? '', 10);
-    const parsedOffset = Number.parseInt(offset ?? '', 10);
     const { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } = RecordService;
     const resolvedLimit =
       Number.isNaN(parsedLimit) || parsedLimit <= 0
         ? DEFAULT_PAGE_SIZE
         : Math.min(parsedLimit, MAX_PAGE_SIZE);
-    const resolvedOffset =
-      Number.isNaN(parsedOffset) || parsedOffset < 0 ? 0 : parsedOffset;
 
     const version = await this.cacheHelper.getVersion(RecordService.NAMESPACE);
-    const cacheKey = `records:v${version}:${(q ?? '').trim().toLowerCase()}:${(artist ?? '').trim().toLowerCase()}:${(album ?? '').trim().toLowerCase()}:${format ?? ''}:${category ?? ''}:${resolvedLimit}:${resolvedOffset}`;
+    const cacheKey = `records:v${version}:${(q ?? '').trim().toLowerCase()}:${(artist ?? '').trim().toLowerCase()}:${(album ?? '').trim().toLowerCase()}:${format ?? ''}:${category ?? ''}:${resolvedLimit}:${cursor ?? ''}`;
 
-    const cached = await this.cacheHelper.get<Record[]>(cacheKey);
+    const cached =
+      await this.cacheHelper.get<PaginatedResponseDTO<RecordResponseDTO>>(
+        cacheKey,
+      );
     if (cached) {
       return cached;
     }
 
     const results = await this.recordModel
       .find(filters)
-      .skip(resolvedOffset)
+      .sort({ _id: 1 })
       .limit(resolvedLimit)
       .lean()
       .exec();
 
-    await this.cacheHelper.set(cacheKey, results);
-    return results;
+    const data = results.map(RecordResponseDTO.from);
+    const hasMore = results.length === resolvedLimit;
+    const nextCursor = hasMore
+      ? encodeCursor({ _id: results[results.length - 1]._id.toString() })
+      : null;
+
+    const page = PaginatedResponseDTO.create(data, nextCursor, hasMore);
+    await this.cacheHelper.set(
+      cacheKey,
+      page,
+      RecordService.PAGINATION_CACHE_TTL,
+    );
+    return page;
   }
 
   async getTracklistByMbid(mbid?: string): Promise<string[]> {
@@ -163,7 +189,7 @@ export class RecordService {
       return cached;
     }
 
-    const url = `${RecordService.MUSICBRAINZ_RELEASE_URL}/${encodeURIComponent(normalizedMbid)}?inc=recordings&fmt=xml`;
+    const url = `${RecordService.MUSICBRAINZ_RELEASE_URL}/${encodeURIComponent(normalizedMbid)}?inc=recordings&fmt=json`;
     const abortController = new AbortController();
     const timeout = setTimeout(
       () => abortController.abort(),
@@ -172,7 +198,10 @@ export class RecordService {
 
     try {
       const response = await fetch(url, {
-        headers: { Accept: 'application/xml' },
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'VinylRecordCollectionApp/1.0',
+        },
         signal: abortController.signal,
       });
 
@@ -180,8 +209,16 @@ export class RecordService {
         return [];
       }
 
-      const xmlBody = await response.text();
-      const tracklist = this.extractTrackTitles(xmlBody);
+      const json = await response.json();
+      const tracklist: string[] = [];
+      for (const medium of json.media ?? []) {
+        for (const track of medium.tracks ?? []) {
+          const title = track.title?.trim();
+          if (title) {
+            tracklist.push(title);
+          }
+        }
+      }
       await this.cacheHelper.set(
         cacheKey,
         tracklist,
@@ -193,35 +230,5 @@ export class RecordService {
     } finally {
       clearTimeout(timeout);
     }
-  }
-
-  private extractTrackTitles(xmlBody: string): string[] {
-    const trackNodes = xmlBody.match(/<track\b[\s\S]*?<\/track>/gi) ?? [];
-
-    return trackNodes
-      .map((trackNode) => {
-        const titleMatch = trackNode.match(/<title>([\s\S]*?)<\/title>/i);
-        if (!titleMatch) {
-          return '';
-        }
-
-        return this.decodeXmlEntities(titleMatch[1]).trim();
-      })
-      .filter((title) => title.length > 0);
-  }
-
-  private decodeXmlEntities(value: string): string {
-    return value
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'")
-      .replace(/&#x([0-9A-Fa-f]+);/g, (_, hexCode: string) =>
-        String.fromCodePoint(Number.parseInt(hexCode, 16)),
-      )
-      .replace(/&#([0-9]+);/g, (_, decimalCode: string) =>
-        String.fromCodePoint(Number.parseInt(decimalCode, 10)),
-      );
   }
 }

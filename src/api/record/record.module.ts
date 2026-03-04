@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { RecordController } from './controllers/record.controller';
-import { RecordService } from './services/record.service';
-import { RecordSchema } from './schemas/record.schema';
+import { RecordController } from './record.controller';
+import { RecordService } from './record.service';
+import { RecordSchema } from './record.schema';
 
 @Module({
   imports: [

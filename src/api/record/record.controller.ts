@@ -1,5 +1,4 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
-import { Record } from '../schemas/record.schema';
 import {
   ApiOperation,
   ApiParam,
@@ -7,10 +6,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { CreateRecordRequestDTO } from '../dtos/create-record.request.dto';
-import { RecordCategory, RecordFormat } from '../schemas/record.enum';
-import { UpdateRecordRequestDTO } from '../dtos/update-record.request.dto';
-import { RecordService } from '../services/record.service';
+import { CreateRecordRequestDTO } from './dtos/create-record.request.dto';
+import { RecordCategory, RecordFormat } from './record.enum';
+import { UpdateRecordRequestDTO } from './dtos/update-record.request.dto';
+import { RecordResponseDTO } from './dtos/record.response.dto';
+import { PaginatedResponseDTO } from '../common/dtos/paginated.response.dto';
+import { RecordService } from './record.service';
 
 @ApiTags('Records')
 @Controller('records')
@@ -22,11 +23,14 @@ export class RecordController {
   @ApiResponse({
     status: 201,
     description: 'Record successfully created',
-    type: Record,
+    type: RecordResponseDTO,
   })
   @ApiResponse({ status: 400, description: 'Bad Request' })
-  async create(@Body() request: CreateRecordRequestDTO): Promise<Record> {
-    return this.recordService.createRecord(request);
+  async create(
+    @Body() request: CreateRecordRequestDTO,
+  ): Promise<RecordResponseDTO> {
+    const record = await this.recordService.createRecord(request);
+    return RecordResponseDTO.from(record);
   }
 
   @Put(':id')
@@ -35,22 +39,22 @@ export class RecordController {
   @ApiResponse({
     status: 200,
     description: 'Record updated successfully',
-    type: Record,
+    type: RecordResponseDTO,
   })
   @ApiResponse({ status: 500, description: 'Cannot find record to update' })
   async update(
     @Param('id') id: string,
     @Body() updateRecordDto: UpdateRecordRequestDTO,
-  ): Promise<Record> {
-    return this.recordService.updateRecord(id, updateRecordDto);
+  ): Promise<RecordResponseDTO> {
+    const record = await this.recordService.updateRecord(id, updateRecordDto);
+    return RecordResponseDTO.from(record);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all records with optional filters' })
   @ApiResponse({
     status: 200,
-    description: 'List of records',
-    type: [Record],
+    description: 'Paginated list of records',
   })
   @ApiQuery({
     name: 'q',
@@ -91,10 +95,10 @@ export class RecordController {
     type: Number,
   })
   @ApiQuery({
-    name: 'offset',
+    name: 'cursor',
     required: false,
-    description: 'Number of records to skip (default 0)',
-    type: Number,
+    description: 'Cursor (last record ID) for pagination',
+    type: String,
   })
   async findAll(
     @Query('q') q?: string,
@@ -103,8 +107,8 @@ export class RecordController {
     @Query('format') format?: RecordFormat,
     @Query('category') category?: RecordCategory,
     @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ): Promise<Record[]> {
+    @Query('cursor') cursor?: string,
+  ): Promise<PaginatedResponseDTO<RecordResponseDTO>> {
     return this.recordService.findAll({
       q,
       artist,
@@ -112,7 +116,7 @@ export class RecordController {
       format,
       category,
       limit,
-      offset,
+      cursor,
     });
   }
 }

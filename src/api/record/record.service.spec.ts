@@ -3,9 +3,10 @@ import { MongooseModule, getConnectionToken } from '@nestjs/mongoose';
 import { Connection, Types } from 'mongoose';
 import { InternalServerErrorException } from '@nestjs/common';
 import { RecordService } from './record.service';
-import { RecordSchema } from '../schemas/record.schema';
-import { RecordFormat, RecordCategory } from '../schemas/record.enum';
-import { CacheHelper } from '../cache/cache.helper';
+import { RecordSchema } from './record.schema';
+import { RecordFormat, RecordCategory } from './record.enum';
+import { CacheHelper } from '../common/utils/cache/cache.helper';
+import { decodeCursor } from '../common/utils/cursor';
 import {
   startTestDb,
   stopTestDb,
@@ -86,33 +87,21 @@ describe('RecordService', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('should fetch and parse tracklist from musicbrainz xml', async () => {
-      const xml = `
-        <metadata>
-          <release>
-            <medium-list>
-              <medium>
-                <track-list>
-                  <track>
-                    <recording>
-                      <title>Come Together</title>
-                    </recording>
-                  </track>
-                  <track>
-                    <recording>
-                      <title>Maxwell&apos;s Silver Hammer &amp; More</title>
-                    </recording>
-                  </track>
-                </track-list>
-              </medium>
-            </medium-list>
-          </release>
-        </metadata>
-      `;
+    it('should fetch and parse tracklist from musicbrainz json', async () => {
+      const jsonBody = {
+        media: [
+          {
+            tracks: [
+              { title: 'Come Together' },
+              { title: "Maxwell's Silver Hammer & More" },
+            ],
+          },
+        ],
+      };
 
       fetchMock.mockResolvedValue({
         ok: true,
-        text: jest.fn().mockResolvedValue(xml),
+        json: jest.fn().mockResolvedValue(jsonBody),
       });
 
       const tracklist = await service.getTracklistByMbid(
@@ -120,9 +109,12 @@ describe('RecordService', () => {
       );
 
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://musicbrainz.org/ws/2/release/b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d?inc=recordings&fmt=xml',
+        'https://musicbrainz.org/ws/2/release/b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d?inc=recordings&fmt=json',
         expect.objectContaining({
-          headers: { Accept: 'application/xml' },
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'VinylRecordCollectionApp/1.0',
+          },
         }),
       );
       expect(tracklist).toEqual([
@@ -134,7 +126,7 @@ describe('RecordService', () => {
     it('should return empty tracklist when musicbrainz responds with non-200', async () => {
       fetchMock.mockResolvedValue({
         ok: false,
-        text: jest.fn(),
+        json: jest.fn(),
       });
 
       const tracklist = await service.getTracklistByMbid(
@@ -176,94 +168,44 @@ describe('RecordService', () => {
       jest.useRealTimers();
     });
 
-    it('should skip tracks with no title element', async () => {
-      const xml = `
-        <metadata>
-          <release>
-            <medium-list>
-              <medium>
-                <track-list>
-                  <track>
-                    <recording>
-                      <title>Valid Track</title>
-                    </recording>
-                  </track>
-                  <track>
-                    <recording></recording>
-                  </track>
-                </track-list>
-              </medium>
-            </medium-list>
-          </release>
-        </metadata>
-      `;
+    it('should skip tracks with no title', async () => {
+      const jsonBody = {
+        media: [
+          {
+            tracks: [{ title: 'Valid Track' }, { title: '' }, {}],
+          },
+        ],
+      };
 
       fetchMock.mockResolvedValue({
         ok: true,
-        text: jest.fn().mockResolvedValue(xml),
+        json: jest.fn().mockResolvedValue(jsonBody),
       });
 
       const tracklist = await service.getTracklistByMbid('some-mbid');
       expect(tracklist).toEqual(['Valid Track']);
     });
 
-    it('should return empty tracklist when xml has no track nodes', async () => {
-      const xml = `<metadata><release><medium-list></medium-list></release></metadata>`;
-
+    it('should return empty tracklist when json has no media', async () => {
       fetchMock.mockResolvedValue({
         ok: true,
-        text: jest.fn().mockResolvedValue(xml),
+        json: jest.fn().mockResolvedValue({}),
       });
 
       const tracklist = await service.getTracklistByMbid('some-mbid');
       expect(tracklist).toEqual([]);
     });
 
-    it('should decode decimal numeric xml entities', async () => {
-      const xml = `
-        <metadata>
-          <release>
-            <medium-list>
-              <medium>
-                <track-list>
-                  <track>
-                    <recording>
-                      <title>Rock &#38; Roll &#60;Live&#62;</title>
-                    </recording>
-                  </track>
-                  <track>
-                    <recording>
-                      <title>Caf&#xe9; &#x26; Bar</title>
-                    </recording>
-                  </track>
-                </track-list>
-              </medium>
-            </medium-list>
-          </release>
-        </metadata>
-      `;
-
-      fetchMock.mockResolvedValue({
-        ok: true,
-        text: jest.fn().mockResolvedValue(xml),
-      });
-
-      const tracklist = await service.getTracklistByMbid('some-mbid');
-      expect(tracklist).toEqual(['Rock & Roll <Live>', 'Caf\u00e9 & Bar']);
-    });
-
     it('should still fetch from MusicBrainz when cache returns undefined (miss)', async () => {
       (cacheHelper.get as jest.Mock).mockResolvedValue(undefined);
 
-      const xml = `
-        <metadata><release><medium-list><medium><track-list>
-          <track><recording><title>Track 1</title></recording></track>
-        </track-list></medium></medium-list></release></metadata>
-      `;
+      const jsonBody = {
+        media: [{ tracks: [{ title: 'Track 1' }] }],
+      };
 
       fetchMock.mockResolvedValue({
         ok: true,
-        text: jest.fn().mockResolvedValue(xml),
+        json: jest.fn().mockResolvedValue(jsonBody),
       });
 
       const tracklist = await service.getTracklistByMbid('some-mbid');
@@ -301,15 +243,14 @@ describe('RecordService', () => {
     });
 
     it('should fetch tracklist when mbid is provided', async () => {
-      const xml = `
-        <metadata><release><medium-list><medium><track-list>
-          <track><recording><title>Come Together</title></recording></track>
-          <track><recording><title>Something</title></recording></track>
-        </track-list></medium></medium-list></release></metadata>
-      `;
+      const jsonBody = {
+        media: [
+          { tracks: [{ title: 'Come Together' }, { title: 'Something' }] },
+        ],
+      };
       fetchMock.mockResolvedValue({
         ok: true,
-        text: jest.fn().mockResolvedValue(xml),
+        json: jest.fn().mockResolvedValue(jsonBody),
       });
 
       const result = await service.createRecord({
@@ -352,15 +293,12 @@ describe('RecordService', () => {
         mbid: 'old-mbid',
       });
 
-      const xml = `
-        <metadata><release><medium-list><medium><track-list>
-          <track><recording><title>Track 1</title></recording></track>
-          <track><recording><title>Track 2</title></recording></track>
-        </track-list></medium></medium-list></release></metadata>
-      `;
+      const jsonBody = {
+        media: [{ tracks: [{ title: 'Track 1' }, { title: 'Track 2' }] }],
+      };
       fetchMock.mockResolvedValue({
         ok: true,
-        text: jest.fn().mockResolvedValue(xml),
+        json: jest.fn().mockResolvedValue(jsonBody),
       });
 
       const updated = await service.updateRecord(created._id.toString(), {
@@ -412,9 +350,11 @@ describe('RecordService', () => {
         format: RecordFormat.CD,
       });
 
-      const results = await service.findAll();
+      const result = await service.findAll();
 
-      expect(results).toHaveLength(2);
+      expect(result.data).toHaveLength(2);
+      expect(result.hasMore).toBe(false);
+      expect(result.nextCursor).toBeNull();
     });
 
     it('should filter by artist (exact, case-insensitive)', async () => {
@@ -425,27 +365,27 @@ describe('RecordService', () => {
         album: 'The Wall',
       });
 
-      const results = await service.findAll({ artist: 'the beatles' });
+      const result = await service.findAll({ artist: 'the beatles' });
 
-      expect(results).toHaveLength(1);
-      expect(results[0].artist).toBe('The Beatles');
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].artist).toBe('The Beatles');
     });
 
     it('should match artist case-insensitively', async () => {
       await service.createRecord(baseRecord);
 
-      const results = await service.findAll({ artist: 'THE BEATLES' });
+      const result = await service.findAll({ artist: 'THE BEATLES' });
 
-      expect(results).toHaveLength(1);
-      expect(results[0].artist).toBe('The Beatles');
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].artist).toBe('The Beatles');
     });
 
     it('should not match partial artist name', async () => {
       await service.createRecord(baseRecord);
 
-      const results = await service.findAll({ artist: 'beatles' });
+      const result = await service.findAll({ artist: 'beatles' });
 
-      expect(results).toHaveLength(0);
+      expect(result.data).toHaveLength(0);
     });
 
     it('should filter by album (exact, case-insensitive)', async () => {
@@ -456,18 +396,18 @@ describe('RecordService', () => {
         format: RecordFormat.CD,
       });
 
-      const results = await service.findAll({ album: 'Abbey Road' });
+      const result = await service.findAll({ album: 'Abbey Road' });
 
-      expect(results).toHaveLength(1);
-      expect(results[0].album).toBe('Abbey Road');
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].album).toBe('Abbey Road');
     });
 
     it('should not match partial album name', async () => {
       await service.createRecord(baseRecord);
 
-      const results = await service.findAll({ album: 'abbey' });
+      const result = await service.findAll({ album: 'abbey' });
 
-      expect(results).toHaveLength(0);
+      expect(result.data).toHaveLength(0);
     });
 
     it('should filter by format', async () => {
@@ -478,10 +418,10 @@ describe('RecordService', () => {
         format: RecordFormat.CD,
       });
 
-      const results = await service.findAll({ format: RecordFormat.CD });
+      const result = await service.findAll({ format: RecordFormat.CD });
 
-      expect(results).toHaveLength(1);
-      expect(results[0].format).toBe(RecordFormat.CD);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].format).toBe(RecordFormat.CD);
     });
 
     it('should filter by category', async () => {
@@ -493,13 +433,13 @@ describe('RecordService', () => {
         category: RecordCategory.JAZZ,
       });
 
-      const results = await service.findAll({ category: RecordCategory.JAZZ });
+      const result = await service.findAll({ category: RecordCategory.JAZZ });
 
-      expect(results).toHaveLength(1);
-      expect(results[0].category).toBe(RecordCategory.JAZZ);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].category).toBe(RecordCategory.JAZZ);
     });
 
-    it('should respect limit and offset', async () => {
+    it('should respect limit and cursor', async () => {
       for (let i = 0; i < 5; i++) {
         await service.createRecord({
           ...baseRecord,
@@ -507,17 +447,28 @@ describe('RecordService', () => {
         });
       }
 
-      const results = await service.findAll({ limit: '2', offset: '1' });
+      const page1 = await service.findAll({ limit: '2' });
 
-      expect(results).toHaveLength(2);
+      expect(page1.data).toHaveLength(2);
+      expect(page1.hasMore).toBe(true);
+      expect(page1.nextCursor).toBeDefined();
+
+      const page2 = await service.findAll({
+        limit: '2',
+        cursor: page1.nextCursor!,
+      });
+
+      expect(page2.data).toHaveLength(2);
+      expect(page2.data[0].id).not.toBe(page1.data[0].id);
+      expect(page2.data[0].id).not.toBe(page1.data[1].id);
     });
 
     it('should clamp limit to max 200', async () => {
       await service.createRecord(baseRecord);
 
-      const results = await service.findAll({ limit: '9999' });
+      const result = await service.findAll({ limit: '9999' });
 
-      expect(results).toHaveLength(1);
+      expect(result.data).toHaveLength(1);
     });
 
     it('should use text search with q parameter', async () => {
@@ -528,20 +479,24 @@ describe('RecordService', () => {
         album: 'The Wall',
       });
 
-      const results = await service.findAll({ q: 'Beatles' });
+      const result = await service.findAll({ q: 'Beatles' });
 
-      expect(results).toHaveLength(1);
-      expect(results[0].artist).toBe('The Beatles');
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].artist).toBe('The Beatles');
     });
 
     it('should return cached data without querying the DB', async () => {
-      const cachedData = [{ artist: 'Cached Artist', album: 'Cached Album' }];
-      jest.spyOn(cacheHelper, 'get').mockResolvedValueOnce(cachedData);
+      const cachedPage = {
+        data: [{ id: '1', artist: 'Cached Artist' }],
+        nextCursor: null,
+        hasMore: false,
+      };
+      jest.spyOn(cacheHelper, 'get').mockResolvedValueOnce(cachedPage);
       (cacheHelper.set as jest.Mock).mockClear();
 
-      const results = await service.findAll();
+      const result = await service.findAll();
 
-      expect(results).toEqual(cachedData);
+      expect(result).toEqual(cachedPage);
       expect(cacheHelper.set).not.toHaveBeenCalled();
     });
 
@@ -561,6 +516,34 @@ describe('RecordService', () => {
       jest.spyOn(cacheHelper, 'getVersion').mockResolvedValueOnce(1);
       await service.findAll();
       expect(setSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return an opaque cursor that decodes to contain _id', async () => {
+      for (let i = 0; i < 3; i++) {
+        await service.createRecord({
+          ...baseRecord,
+          album: `Album ${i}`,
+        });
+      }
+
+      const page = await service.findAll({ limit: '2' });
+
+      expect(page.nextCursor).toBeDefined();
+      expect(Types.ObjectId.isValid(page.nextCursor!)).toBe(false);
+      const decoded = decodeCursor(page.nextCursor!);
+      expect(decoded).toHaveProperty('_id');
+      expect(Types.ObjectId.isValid(decoded!._id as string)).toBe(true);
+    });
+
+    it('should return RecordResponseDTO objects with id field', async () => {
+      await service.createRecord(baseRecord);
+
+      const result = await service.findAll();
+
+      expect(result.data[0]).toHaveProperty('id');
+      expect(result.data[0]).toHaveProperty('artist', 'The Beatles');
+      expect(result.data[0]).not.toHaveProperty('_id');
+      expect(result.data[0]).not.toHaveProperty('artistNormalized');
     });
   });
 });

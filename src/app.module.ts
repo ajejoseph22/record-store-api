@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
-import { RecordModule } from './api/record.module';
-import { OrderModule } from './api/order.module';
+import { RecordModule } from './api/record/record.module';
+import { OrderModule } from './api/order/order.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppConfig } from './app.config';
-import { CacheHelperModule } from './api/cache/cache-helper.module';
+import { CacheHelperModule } from './api/common/utils/cache/cache-helper.module';
 
 @Module({
   imports: [

@@ -1,6 +1,6 @@
 import * as mongoose from 'mongoose';
-import { Record, RecordSchema } from './src/api/schemas/record.schema';
-import { RecordFormat, RecordCategory } from './src/api/schemas/record.enum';
+import { Record, RecordSchema } from './src/api/record/record.schema';
+import { RecordFormat, RecordCategory } from './src/api/record/record.enum';
 import * as fs from 'fs';
 import { AppConfig } from './src/app.config';
 import * as readline from 'readline';

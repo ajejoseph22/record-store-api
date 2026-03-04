@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RecordController } from './record.controller';
-import { RecordService } from '../services/record.service';
-import { RecordFormat, RecordCategory } from '../schemas/record.enum';
+import { RecordService } from './record.service';
+import { RecordFormat, RecordCategory } from './record.enum';
+import { PaginatedResponseDTO } from '../common/dtos/paginated.response.dto';
 
 describe('RecordController', () => {
   let controller: RecordController;
@@ -14,11 +15,17 @@ describe('RecordController', () => {
         {
           provide: RecordService,
           useValue: {
-            createRecord: jest
+            createRecord: jest.fn().mockResolvedValue({
+              _id: '1',
+              artist: 'The Beatles',
+              tracklist: [],
+            }),
+            updateRecord: jest
               .fn()
-              .mockResolvedValue({ _id: '1', artist: 'The Beatles' }),
-            updateRecord: jest.fn().mockResolvedValue({ _id: '1', price: 50 }),
-            findAll: jest.fn().mockResolvedValue([]),
+              .mockResolvedValue({ _id: '1', price: 50, tracklist: [] }),
+            findAll: jest
+              .fn()
+              .mockResolvedValue(PaginatedResponseDTO.create([], null, false)),
           },
         },
       ],
@@ -47,6 +54,13 @@ describe('RecordController', () => {
 
       expect(recordService.createRecord).toHaveBeenCalledWith(baseRecord);
     });
+
+    it('should return a RecordResponseDTO', async () => {
+      const result = await controller.create(baseRecord);
+
+      expect(result).toHaveProperty('id');
+      expect(result).toHaveProperty('artist');
+    });
   });
 
   describe('update', () => {
@@ -68,7 +82,7 @@ describe('RecordController', () => {
         RecordFormat.VINYL,
         RecordCategory.ROCK,
         '10',
-        '0',
+        'abc123',
       );
 
       expect(recordService.findAll).toHaveBeenCalledWith({
@@ -78,7 +92,7 @@ describe('RecordController', () => {
         format: RecordFormat.VINYL,
         category: RecordCategory.ROCK,
         limit: '10',
-        offset: '0',
+        cursor: 'abc123',
       });
     });
 
@@ -92,7 +106,7 @@ describe('RecordController', () => {
         format: undefined,
         category: undefined,
         limit: undefined,
-        offset: undefined,
+        cursor: undefined,
       });
     });
   });
