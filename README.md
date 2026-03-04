@@ -13,18 +13,17 @@ NestJS REST API for managing a vinyl/CD/cassette record store. Supports inventor
 ### Docker (recommended)
 
 ```bash
-npm run docker:up
+npm run docker:dev
 ```
-
-Starts MongoDB (replica set), initializes the replica, and builds/runs the API. The app is available at `http://localhost:3000`.
-
-Seed the database:
-
+or 
 ```bash
-npm run setup:db
+npm run docker:prod # for production mode (no DB seeding, no hot reload, no DEBUG level logs)
 ```
 
-### Local Development (without Docker)
+Starts MongoDB (replica set), initializes the replica, seeds the DB (only in DEV mode) and builds/runs the API. The app is available at `http://localhost:3000`.
+
+
+### Local Development via Node
 
 Requires a running MongoDB replica set.
 
@@ -48,13 +47,16 @@ Swagger UI is available at `http://localhost:3000/swagger` when the app is runni
 
 ## Scripts
 
-| Script         | Description                           |
-|----------------|---------------------------------------|
-| `docker:up`    | Start all services via Docker Compose |
-| `start:dev`    | Dev server with hot reload            |
-| `start:prod`   | Run compiled app from `dist/`         |
-| `setup:db`     | Seed database from `data.json`        |
-| `test`         | Unit + integration tests              |
-| `test:e2e`     | End-to-end tests                      |
-| `test:cov`     | Unit + integration tests with coverage|
-| `lint`         | ESLint with auto-fix                  |
+| Script              | Description                               |
+|---------------------|-------------------------------------------|
+| `docker:dev`        | Start app in dev mode via Docker Compose  |
+| `docker:dev:build`  | Build dev Docker image                    |
+| `docker:prod`       | Start app in prod mode via Docker Compose |
+| `docker:prod:build` | Build prod Docker image                   |
+| `start:dev`         | Dev server with hot reload                |
+| `start:prod`        | Run compiled app from `dist/`             |
+| `setup:db`          | Seed database from `data.json`            |
+| `test`              | Unit + integration tests                  |
+| `test:e2e`          | End-to-end tests                          |
+| `test:cov`          | Unit + integration tests with coverage    |
+| `lint`              | ESLint with auto-fix                      |
