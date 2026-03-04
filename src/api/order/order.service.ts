@@ -60,8 +60,10 @@ export class OrderService {
       this.logger.log(
         `Order created: orderId=${result._id} recordId=${dto.recordId} qty=${dto.qty}`,
       );
-      await this.cacheHelper.bumpVersion(OrderService.ORDERS_NAMESPACE);
-      await this.cacheHelper.bumpVersion(OrderService.RECORDS_NAMESPACE);
+      await Promise.all([
+        this.cacheHelper.bumpVersion(OrderService.ORDERS_NAMESPACE),
+        this.cacheHelper.bumpVersion(OrderService.RECORDS_NAMESPACE),
+      ]);
       return OrderResponseDTO.from(result);
     } finally {
       await session.endSession();
