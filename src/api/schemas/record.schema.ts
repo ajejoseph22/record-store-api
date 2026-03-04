@@ -57,6 +57,12 @@ export class Record extends Document {
   @Prop({ default: Date.now })
   lastModified: Date;
 
+  @Prop({ required: true, select: false })
+  artistNormalized: string;
+
+  @Prop({ required: true, select: false })
+  albumNormalized: string;
+
   @ApiProperty({
     description: 'MusicBrainz identifier',
     example: 'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',
@@ -76,6 +82,32 @@ export class Record extends Document {
 
 export const RecordSchema = SchemaFactory.createForClass(Record);
 
+RecordSchema.pre('validate', function () {
+  if (this.artist != null) {
+    this.artistNormalized = this.artist.trim().toLowerCase();
+  }
+  if (this.album != null) {
+    this.albumNormalized = this.album.trim().toLowerCase();
+  }
+});
+
+RecordSchema.pre(['findOneAndUpdate', 'updateOne'], function () {
+  const update = this.getUpdate() as any;
+  const set = update.$set ?? update;
+  if (set.artist != null) {
+    set.artistNormalized = String(set.artist).trim().toLowerCase();
+  }
+  if (set.album != null) {
+    set.albumNormalized = String(set.album).trim().toLowerCase();
+  }
+  if (update.$set) {
+    update.$set = set;
+  } else {
+    Object.assign(update, set);
+  }
+  this.setUpdate(update);
+});
+
 RecordSchema.index(
   { artist: 1, album: 1, format: 1 },
   { unique: true, name: 'record_unique_artist_album_format' },
@@ -89,5 +121,8 @@ RecordSchema.index(
   { name: 'record_format_category' },
 );
 RecordSchema.index({ category: 1 }, { name: 'record_category' });
-RecordSchema.index({ artist: 1 }, { name: 'record_artist' });
-RecordSchema.index({ album: 1 }, { name: 'record_album' });
+RecordSchema.index(
+  { artistNormalized: 1 },
+  { name: 'record_artist_normalized' },
+);
+RecordSchema.index({ albumNormalized: 1 }, { name: 'record_album_normalized' });

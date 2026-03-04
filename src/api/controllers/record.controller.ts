@@ -29,10 +29,6 @@ export class RecordController {
   private static readonly DEFAULT_PAGE_SIZE = 50;
   private static readonly MAX_PAGE_SIZE = 200;
 
-  static escapeRegex(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
   constructor(
     @InjectModel('Record') private readonly recordModel: Model<Record>,
     private readonly recordService: RecordService,
@@ -58,6 +54,8 @@ export class RecordController {
       category: request.category,
       mbid: request.mbid,
       tracklist,
+      artistNormalized: request.artist.trim().toLowerCase(),
+      albumNormalized: request.album.trim().toLowerCase(),
     });
   }
 
@@ -112,13 +110,13 @@ export class RecordController {
   @ApiQuery({
     name: 'artist',
     required: false,
-    description: 'Filter by artist name',
+    description: 'Exact match by artist name (case-insensitive)',
     type: String,
   })
   @ApiQuery({
     name: 'album',
     required: false,
-    description: 'Filter by album name',
+    description: 'Exact match by album name (case-insensitive)',
     type: String,
   })
   @ApiQuery({
@@ -168,24 +166,14 @@ export class RecordController {
     const normalizedArtist = artist?.trim();
     if (normalizedArtist) {
       conditions.push({
-        artist: {
-          $regex: new RegExp(
-            RecordController.escapeRegex(normalizedArtist),
-            'i',
-          ),
-        },
+        artistNormalized: normalizedArtist.toLowerCase(),
       });
     }
 
     const normalizedAlbum = album?.trim();
     if (normalizedAlbum) {
       conditions.push({
-        album: {
-          $regex: new RegExp(
-            RecordController.escapeRegex(normalizedAlbum),
-            'i',
-          ),
-        },
+        albumNormalized: normalizedAlbum.toLowerCase(),
       });
     }
 

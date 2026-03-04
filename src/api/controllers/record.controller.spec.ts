@@ -165,7 +165,7 @@ describe('RecordController', () => {
       expect(results).toHaveLength(2);
     });
 
-    it('should filter by artist (case-insensitive)', async () => {
+    it('should filter by artist (exact, case-insensitive)', async () => {
       await controller.create(baseRecord);
       await controller.create({
         ...baseRecord,
@@ -173,13 +173,30 @@ describe('RecordController', () => {
         album: 'The Wall',
       });
 
-      const results = await controller.findAll(undefined, 'beatles');
+      const results = await controller.findAll(undefined, 'the beatles');
 
       expect(results).toHaveLength(1);
       expect(results[0].artist).toBe('The Beatles');
     });
 
-    it('should filter by album', async () => {
+    it('should match artist case-insensitively', async () => {
+      await controller.create(baseRecord);
+
+      const results = await controller.findAll(undefined, 'THE BEATLES');
+
+      expect(results).toHaveLength(1);
+      expect(results[0].artist).toBe('The Beatles');
+    });
+
+    it('should not match partial artist name', async () => {
+      await controller.create(baseRecord);
+
+      const results = await controller.findAll(undefined, 'beatles');
+
+      expect(results).toHaveLength(0);
+    });
+
+    it('should filter by album (exact, case-insensitive)', async () => {
       await controller.create(baseRecord);
       await controller.create({
         ...baseRecord,
@@ -187,10 +204,22 @@ describe('RecordController', () => {
         format: RecordFormat.CD,
       });
 
-      const results = await controller.findAll(undefined, undefined, 'abbey');
+      const results = await controller.findAll(
+        undefined,
+        undefined,
+        'Abbey Road',
+      );
 
       expect(results).toHaveLength(1);
       expect(results[0].album).toBe('Abbey Road');
+    });
+
+    it('should not match partial album name', async () => {
+      await controller.create(baseRecord);
+
+      const results = await controller.findAll(undefined, undefined, 'abbey');
+
+      expect(results).toHaveLength(0);
     });
 
     it('should filter by format', async () => {
