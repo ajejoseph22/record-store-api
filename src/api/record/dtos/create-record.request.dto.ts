@@ -19,7 +19,7 @@ export class CreateRecordRequestDTO {
   })
   @IsString()
   @IsNotEmpty()
-  artist: string;
+  artist!: string;
 
   @ApiProperty({
     description: 'Album name',
@@ -28,7 +28,7 @@ export class CreateRecordRequestDTO {
   })
   @IsString()
   @IsNotEmpty()
-  album: string;
+  album!: string;
 
   @ApiProperty({
     description: 'Price of the record',
@@ -38,7 +38,7 @@ export class CreateRecordRequestDTO {
   @IsNumber()
   @Min(0)
   @Max(10000)
-  price: number;
+  price!: number;
 
   @ApiProperty({
     description: 'Quantity of the record in stock',
@@ -48,7 +48,7 @@ export class CreateRecordRequestDTO {
   @IsInt()
   @Min(0)
   @Max(100)
-  qty: number;
+  qty!: number;
 
   @ApiProperty({
     description: 'Format of the record (Vinyl, CD, etc.)',
@@ -57,7 +57,7 @@ export class CreateRecordRequestDTO {
   })
   @IsEnum(RecordFormat)
   @IsNotEmpty()
-  format: RecordFormat;
+  format!: RecordFormat;
 
   @ApiProperty({
     description: 'Category or genre of the record (e.g., Rock, Jazz)',
@@ -66,7 +66,7 @@ export class CreateRecordRequestDTO {
   })
   @IsEnum(RecordCategory)
   @IsNotEmpty()
-  category: RecordCategory;
+  category!: RecordCategory;
 
   @ApiProperty({
     description: 'Musicbrainz identifier',

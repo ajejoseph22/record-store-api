@@ -47,8 +47,8 @@ describe('OrderController', () => {
   });
 
   describe('findAll', () => {
-    it('should delegate to orderService.findAll with options', async () => {
-      await controller.findAll('10', 'abc123');
+    it('should delegate to orderService.findAll with query DTO', async () => {
+      await controller.findAll({ limit: '10', cursor: 'abc123' });
 
       expect(orderService.findAll).toHaveBeenCalledWith({
         limit: '10',
@@ -56,13 +56,10 @@ describe('OrderController', () => {
       });
     });
 
-    it('should pass undefined for omitted params', async () => {
-      await controller.findAll();
+    it('should pass empty object for omitted params', async () => {
+      await controller.findAll({});
 
-      expect(orderService.findAll).toHaveBeenCalledWith({
-        limit: undefined,
-        cursor: undefined,
-      });
+      expect(orderService.findAll).toHaveBeenCalledWith({});
     });
   });
 });

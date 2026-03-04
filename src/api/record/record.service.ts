@@ -13,18 +13,9 @@ import { CreateRecordRequestDTO } from './dtos/create-record.request.dto';
 import { UpdateRecordRequestDTO } from './dtos/update-record.request.dto';
 import { RecordResponseDTO } from './dtos/record.response.dto';
 import { PaginatedResponseDTO } from '../common/dtos/paginated.response.dto';
-import { CacheHelper } from '../cache/cache.helper';
+import { CacheHelper } from '../common/cache/cache.helper';
 import { encodeCursor, decodeCursor } from '../common/utils/cursor';
-
-export interface FindAllOptions {
-  q?: string;
-  artist?: string;
-  album?: string;
-  format?: string;
-  category?: string;
-  limit?: string;
-  cursor?: string;
-}
+import { GetRecordsRequestDTO } from './dtos/get-records.request.dto';
 
 @Injectable()
 export class RecordService {
@@ -39,7 +30,7 @@ export class RecordService {
   private readonly logger = new Logger(RecordService.name);
 
   constructor(
-    @InjectModel('Record') private readonly recordModel: Model<Record>,
+    @InjectModel(Record.name) private readonly recordModel: Model<Record>,
     private readonly cacheHelper: CacheHelper,
   ) {}
 
@@ -121,8 +112,8 @@ export class RecordService {
     }
   }
 
-  async findAll(
-    options: FindAllOptions = {},
+  async getAll(
+    options: GetRecordsRequestDTO = {},
   ): Promise<PaginatedResponseDTO<RecordResponseDTO>> {
     const { q, artist, album, format, category, limit, cursor } = options;
     const conditions: FilterQuery<Record>[] = [];

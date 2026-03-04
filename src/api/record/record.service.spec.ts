@@ -8,9 +8,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { RecordService } from './record.service';
-import { RecordSchema } from './record.schema';
+import { Record, RecordSchema } from './record.schema';
 import { RecordFormat, RecordCategory } from './record.enum';
-import { CacheHelper } from '../cache/cache.helper';
+import { CacheHelper } from '../common/cache/cache.helper';
 import { decodeCursor } from '../common/utils/cursor';
 import {
   startTestDb,
@@ -33,7 +33,9 @@ describe('RecordService', () => {
     module = await Test.createTestingModule({
       imports: [
         MongooseModule.forRoot(uri),
-        MongooseModule.forFeature([{ name: 'Record', schema: RecordSchema }]),
+        MongooseModule.forFeature([
+          { name: Record.name, schema: RecordSchema },
+        ]),
       ],
       providers: [
         RecordService,
@@ -376,7 +378,7 @@ describe('RecordService', () => {
         format: RecordFormat.CD,
       });
 
-      const result = await service.findAll();
+      const result = await service.getAll();
 
       expect(result.data).toHaveLength(2);
       expect(result.hasMore).toBe(false);
@@ -391,7 +393,7 @@ describe('RecordService', () => {
         album: 'The Wall',
       });
 
-      const result = await service.findAll({ artist: 'the beatles' });
+      const result = await service.getAll({ artist: 'the beatles' });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].artist).toBe('The Beatles');
@@ -400,7 +402,7 @@ describe('RecordService', () => {
     it('should match artist case-insensitively', async () => {
       await service.createRecord(baseRecord);
 
-      const result = await service.findAll({ artist: 'THE BEATLES' });
+      const result = await service.getAll({ artist: 'THE BEATLES' });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].artist).toBe('The Beatles');
@@ -409,7 +411,7 @@ describe('RecordService', () => {
     it('should not match partial artist name', async () => {
       await service.createRecord(baseRecord);
 
-      const result = await service.findAll({ artist: 'beatles' });
+      const result = await service.getAll({ artist: 'beatles' });
 
       expect(result.data).toHaveLength(0);
     });
@@ -422,7 +424,7 @@ describe('RecordService', () => {
         format: RecordFormat.CD,
       });
 
-      const result = await service.findAll({ album: 'Abbey Road' });
+      const result = await service.getAll({ album: 'Abbey Road' });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].album).toBe('Abbey Road');
@@ -431,7 +433,7 @@ describe('RecordService', () => {
     it('should not match partial album name', async () => {
       await service.createRecord(baseRecord);
 
-      const result = await service.findAll({ album: 'abbey' });
+      const result = await service.getAll({ album: 'abbey' });
 
       expect(result.data).toHaveLength(0);
     });
@@ -444,7 +446,7 @@ describe('RecordService', () => {
         format: RecordFormat.CD,
       });
 
-      const result = await service.findAll({ format: RecordFormat.CD });
+      const result = await service.getAll({ format: RecordFormat.CD });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].format).toBe(RecordFormat.CD);
@@ -459,7 +461,7 @@ describe('RecordService', () => {
         category: RecordCategory.JAZZ,
       });
 
-      const result = await service.findAll({ category: RecordCategory.JAZZ });
+      const result = await service.getAll({ category: RecordCategory.JAZZ });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].category).toBe(RecordCategory.JAZZ);
@@ -473,13 +475,13 @@ describe('RecordService', () => {
         });
       }
 
-      const page1 = await service.findAll({ limit: '2' });
+      const page1 = await service.getAll({ limit: '2' });
 
       expect(page1.data).toHaveLength(2);
       expect(page1.hasMore).toBe(true);
       expect(page1.nextCursor).toBeDefined();
 
-      const page2 = await service.findAll({
+      const page2 = await service.getAll({
         limit: '2',
         cursor: page1.nextCursor!,
       });
@@ -492,7 +494,7 @@ describe('RecordService', () => {
     it('should clamp limit to max 200', async () => {
       await service.createRecord(baseRecord);
 
-      const result = await service.findAll({ limit: '9999' });
+      const result = await service.getAll({ limit: '9999' });
 
       expect(result.data).toHaveLength(1);
     });
@@ -505,7 +507,7 @@ describe('RecordService', () => {
         album: 'The Wall',
       });
 
-      const result = await service.findAll({ q: 'Beatles' });
+      const result = await service.getAll({ q: 'Beatles' });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].artist).toBe('The Beatles');
@@ -520,7 +522,7 @@ describe('RecordService', () => {
       jest.spyOn(cacheHelper, 'get').mockResolvedValueOnce(cachedPage);
       (cacheHelper.set as jest.Mock).mockClear();
 
-      const result = await service.findAll();
+      const result = await service.getAll();
 
       expect(result).toEqual(cachedPage);
       expect(cacheHelper.set).not.toHaveBeenCalled();
@@ -534,13 +536,13 @@ describe('RecordService', () => {
       jest.spyOn(cacheHelper, 'get').mockResolvedValue(undefined);
       const setSpy = jest.spyOn(cacheHelper, 'set');
 
-      await service.findAll();
+      await service.getAll();
       expect(setSpy).toHaveBeenCalledTimes(1);
 
       setSpy.mockClear();
 
       jest.spyOn(cacheHelper, 'getVersion').mockResolvedValueOnce(1);
-      await service.findAll();
+      await service.getAll();
       expect(setSpy).toHaveBeenCalledTimes(1);
     });
 
@@ -552,7 +554,7 @@ describe('RecordService', () => {
         });
       }
 
-      const page = await service.findAll({ limit: '2' });
+      const page = await service.getAll({ limit: '2' });
 
       expect(page.nextCursor).toBeDefined();
       expect(Types.ObjectId.isValid(page.nextCursor!)).toBe(false);
@@ -564,7 +566,7 @@ describe('RecordService', () => {
     it('should return RecordResponseDTO objects with id field', async () => {
       await service.createRecord(baseRecord);
 
-      const result = await service.findAll();
+      const result = await service.getAll();
 
       expect(result.data[0]).toHaveProperty('id');
       expect(result.data[0]).toHaveProperty('artist', 'The Beatles');

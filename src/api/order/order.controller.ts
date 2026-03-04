@@ -1,9 +1,10 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CreateOrderRequestDTO } from './dtos/create-order.request.dto';
 import { OrderResponseDTO } from './dtos/order.response.dto';
 import { PaginatedResponseDTO } from '../common/dtos/paginated.response.dto';
 import { OrderService } from './order.service';
+import { GetOrdersRequestDTO } from './dtos/get-orders.request.dto';
 
 @ApiTags('Orders')
 @Controller('orders')
@@ -25,22 +26,9 @@ export class OrderController {
   @Get()
   @ApiOperation({ summary: 'Get all orders' })
   @ApiResponse({ status: 200, description: 'Paginated list of orders' })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    description: 'Max orders to return (default 50, max 200)',
-    type: Number,
-  })
-  @ApiQuery({
-    name: 'cursor',
-    required: false,
-    description: 'Cursor (last order ID) for pagination',
-    type: String,
-  })
   async findAll(
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
+    @Query() query: GetOrdersRequestDTO,
   ): Promise<PaginatedResponseDTO<OrderResponseDTO>> {
-    return this.orderService.findAll({ limit, cursor });
+    return this.orderService.findAll(query);
   }
 }

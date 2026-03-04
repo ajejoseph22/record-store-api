@@ -9,7 +9,7 @@ export class CreateOrderRequestDTO {
   })
   @IsString()
   @IsNotEmpty()
-  recordId: string;
+  recordId!: string;
 
   @ApiProperty({
     description: 'Quantity of records to order',
@@ -19,5 +19,5 @@ export class CreateOrderRequestDTO {
   @IsInt()
   @Min(1)
   @Max(100)
-  qty: number;
+  qty!: number;
 }

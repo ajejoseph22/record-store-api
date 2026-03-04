@@ -6,7 +6,7 @@ import { MongooseModule, getConnectionToken } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { RecordModule } from '../src/api/record/record.module';
 import { OrderModule } from '../src/api/order/order.module';
-import { CacheHelperModule } from '../src/api/cache/cache-helper.module';
+import { CacheHelperModule } from '../src/api/common/cache/cache-helper.module';
 import { RecordFormat, RecordCategory } from '../src/api/record/record.enum';
 import {
   startTestDb,

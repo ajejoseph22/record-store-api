@@ -2,8 +2,10 @@ import * as mongoose from 'mongoose';
 import { Record, RecordSchema } from './src/api/record/record.schema';
 import { RecordFormat, RecordCategory } from './src/api/record/record.enum';
 import * as fs from 'fs';
-import { AppConfig } from './src/app.config';
+import * as dotenv from 'dotenv';
 import * as readline from 'readline';
+
+dotenv.config();
 
 interface SeedRecord {
   artist: string;
@@ -35,7 +37,7 @@ async function setupDatabase() {
           RecordSchema,
         );
 
-        await mongoose.connect(AppConfig.mongoUrl);
+        await mongoose.connect(process.env.MONGO_URL!);
 
         if (answer.toLowerCase() === 'y') {
           await recordModel.deleteMany({});

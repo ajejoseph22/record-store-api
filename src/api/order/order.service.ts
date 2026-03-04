@@ -10,13 +10,9 @@ import { Record } from '../record/record.schema';
 import { CreateOrderRequestDTO } from './dtos/create-order.request.dto';
 import { OrderResponseDTO } from './dtos/order.response.dto';
 import { PaginatedResponseDTO } from '../common/dtos/paginated.response.dto';
-import { CacheHelper } from '../cache/cache.helper';
+import { CacheHelper } from '../common/cache/cache.helper';
 import { encodeCursor, decodeCursor } from '../common/utils/cursor';
-
-export interface FindAllOrderOptions {
-  limit?: string;
-  cursor?: string;
-}
+import { GetOrdersRequestDTO } from './dtos/get-orders.request.dto';
 
 @Injectable()
 export class OrderService {
@@ -29,8 +25,8 @@ export class OrderService {
   private readonly logger = new Logger(OrderService.name);
 
   constructor(
-    @InjectModel('Order') private readonly orderModel: Model<Order>,
-    @InjectModel('Record') private readonly recordModel: Model<Record>,
+    @InjectModel(Order.name) private readonly orderModel: Model<Order>,
+    @InjectModel(Record.name) private readonly recordModel: Model<Record>,
     @InjectConnection() private readonly connection: Connection,
     private readonly cacheHelper: CacheHelper,
   ) {}
@@ -73,7 +69,7 @@ export class OrderService {
   }
 
   async findAll(
-    options: FindAllOrderOptions = {},
+    options: GetOrdersRequestDTO = {},
   ): Promise<PaginatedResponseDTO<OrderResponseDTO>> {
     const { limit, cursor } = options;
 

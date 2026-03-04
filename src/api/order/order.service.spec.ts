@@ -3,10 +3,10 @@ import { MongooseModule, getConnectionToken } from '@nestjs/mongoose';
 import { Connection, Types } from 'mongoose';
 import { UnprocessableEntityException } from '@nestjs/common';
 import { OrderService } from './order.service';
-import { OrderSchema } from './order.schema';
-import { RecordSchema } from '../record/record.schema';
+import { Order, OrderSchema } from './order.schema';
+import { Record, RecordSchema } from '../record/record.schema';
 import { RecordFormat, RecordCategory } from '../record/record.enum';
-import { CacheHelper } from '../cache/cache.helper';
+import { CacheHelper } from '../common/cache/cache.helper';
 import { decodeCursor } from '../common/utils/cursor';
 import {
   startTestDb,
@@ -29,8 +29,8 @@ describe('OrderService', () => {
       imports: [
         MongooseModule.forRoot(uri),
         MongooseModule.forFeature([
-          { name: 'Order', schema: OrderSchema },
-          { name: 'Record', schema: RecordSchema },
+          { name: Order.name, schema: OrderSchema },
+          { name: Record.name, schema: RecordSchema },
         ]),
       ],
       providers: [

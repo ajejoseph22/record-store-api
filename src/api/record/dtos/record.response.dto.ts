@@ -2,37 +2,37 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RecordResponseDTO {
   @ApiProperty({ example: '507f1f77bcf86cd799439011' })
-  id: string;
+  id!: string;
 
   @ApiProperty({ example: 'The Beatles' })
-  artist: string;
+  artist!: string;
 
   @ApiProperty({ example: 'Abbey Road' })
-  album: string;
+  album!: string;
 
   @ApiProperty({ example: 29.99 })
-  price: number;
+  price!: number;
 
   @ApiProperty({ example: 50 })
-  qty: number;
+  qty!: number;
 
   @ApiProperty({ example: 'Vinyl' })
-  format: string;
+  format!: string;
 
   @ApiProperty({ example: 'Rock' })
-  category: string;
+  category!: string;
 
   @ApiPropertyOptional({ example: 'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d' })
   mbid?: string;
 
   @ApiProperty({ example: ['Come Together', 'Something'], type: [String] })
-  tracklist: string[];
+  tracklist!: string[];
 
   @ApiProperty({ example: '2024-01-01T00:00:00.000Z' })
-  createdAt: string;
+  createdAt!: string;
 
   @ApiProperty({ example: '2024-01-01T00:00:00.000Z' })
-  updatedAt: string;
+  updatedAt!: string;
 
   static from(doc: any): RecordResponseDTO {
     const dto = new RecordResponseDTO();

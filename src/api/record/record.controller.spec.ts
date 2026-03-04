@@ -74,18 +74,8 @@ describe('RecordController', () => {
   });
 
   describe('findAll', () => {
-    it('should delegate to recordService.findAll with options', async () => {
-      await controller.findAll(
-        'q',
-        'artist',
-        'album',
-        RecordFormat.VINYL,
-        RecordCategory.ROCK,
-        '10',
-        'abc123',
-      );
-
-      expect(recordService.findAll).toHaveBeenCalledWith({
+    it('should delegate to recordService.findAll with query DTO', async () => {
+      const query = {
         q: 'q',
         artist: 'artist',
         album: 'album',
@@ -93,21 +83,16 @@ describe('RecordController', () => {
         category: RecordCategory.ROCK,
         limit: '10',
         cursor: 'abc123',
-      });
+      };
+      await controller.getAll(query);
+
+      expect(recordService.getAll).toHaveBeenCalledWith(query);
     });
 
-    it('should pass undefined for omitted params', async () => {
-      await controller.findAll();
+    it('should pass empty object for omitted params', async () => {
+      await controller.getAll({});
 
-      expect(recordService.findAll).toHaveBeenCalledWith({
-        q: undefined,
-        artist: undefined,
-        album: undefined,
-        format: undefined,
-        category: undefined,
-        limit: undefined,
-        cursor: undefined,
-      });
+      expect(recordService.getAll).toHaveBeenCalledWith({});
     });
   });
 });

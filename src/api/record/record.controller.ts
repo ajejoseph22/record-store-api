@@ -1,17 +1,12 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiParam,
-  ApiQuery,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CreateRecordRequestDTO } from './dtos/create-record.request.dto';
-import { RecordCategory, RecordFormat } from './record.enum';
 import { UpdateRecordRequestDTO } from './dtos/update-record.request.dto';
 import { RecordResponseDTO } from './dtos/record.response.dto';
 import { PaginatedResponseDTO } from '../common/dtos/paginated.response.dto';
 import { RecordService } from './record.service';
+import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
+import { GetRecordsRequestDTO } from './dtos/get-records.request.dto';
 
 @ApiTags('Records')
 @Controller('records')
@@ -26,6 +21,11 @@ export class RecordController {
     type: RecordResponseDTO,
   })
   @ApiResponse({ status: 400, description: 'Bad Request' })
+  @ApiResponse({
+    status: 409,
+    description: 'Duplicate artist/album/format combination',
+  })
+  @ApiResponse({ status: 502, description: 'MusicBrainz unavailable' })
   async create(
     @Body() request: CreateRecordRequestDTO,
   ): Promise<RecordResponseDTO> {
@@ -41,9 +41,13 @@ export class RecordController {
     description: 'Record updated successfully',
     type: RecordResponseDTO,
   })
-  @ApiResponse({ status: 500, description: 'Cannot find record to update' })
+  @ApiResponse({ status: 404, description: 'Record not found' })
+  @ApiResponse({
+    status: 409,
+    description: 'Duplicate artist/album/format combination',
+  })
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseObjectIdPipe) id: string,
     @Body() updateRecordDto: UpdateRecordRequestDTO,
   ): Promise<RecordResponseDTO> {
     const record = await this.recordService.updateRecord(id, updateRecordDto);
@@ -56,67 +60,9 @@ export class RecordController {
     status: 200,
     description: 'Paginated list of records',
   })
-  @ApiQuery({
-    name: 'q',
-    required: false,
-    description: 'Full-text search query across artist, album, and category',
-    type: String,
-  })
-  @ApiQuery({
-    name: 'artist',
-    required: false,
-    description: 'Exact match by artist name (case-insensitive)',
-    type: String,
-  })
-  @ApiQuery({
-    name: 'album',
-    required: false,
-    description: 'Exact match by album name (case-insensitive)',
-    type: String,
-  })
-  @ApiQuery({
-    name: 'format',
-    required: false,
-    description: 'Filter by record format (Vinyl, CD, etc.)',
-    enum: RecordFormat,
-    type: String,
-  })
-  @ApiQuery({
-    name: 'category',
-    required: false,
-    description: 'Filter by record category (e.g., Rock, Jazz)',
-    enum: RecordCategory,
-    type: String,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    description: 'Max records to return (default 50, max 200)',
-    type: Number,
-  })
-  @ApiQuery({
-    name: 'cursor',
-    required: false,
-    description: 'Cursor (last record ID) for pagination',
-    type: String,
-  })
-  async findAll(
-    @Query('q') q?: string,
-    @Query('artist') artist?: string,
-    @Query('album') album?: string,
-    @Query('format') format?: RecordFormat,
-    @Query('category') category?: RecordCategory,
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
+  async getAll(
+    @Query() query: GetRecordsRequestDTO,
   ): Promise<PaginatedResponseDTO<RecordResponseDTO>> {
-    return this.recordService.findAll({
-      q,
-      artist,
-      album,
-      format,
-      category,
-      limit,
-      cursor,
-    });
+    return this.recordService.getAll(query);
   }
 }

@@ -9,23 +9,23 @@ export class Record extends Document {
     description: 'Record ID',
     example: '507f1f77bcf86cd799439011',
   })
-  _id: string;
+  declare _id: string;
 
   @ApiProperty({ description: 'Artist name', example: 'The Beatles' })
   @Prop({ required: true })
-  artist: string;
+  artist!: string;
 
   @ApiProperty({ description: 'Album name', example: 'Abbey Road' })
   @Prop({ required: true })
-  album: string;
+  album!: string;
 
   @ApiProperty({ description: 'Price of the record', example: 29.99 })
   @Prop({ required: true })
-  price: number;
+  price!: number;
 
   @ApiProperty({ description: 'Quantity in stock', example: 50 })
   @Prop({ required: true })
-  qty: number;
+  qty!: number;
 
   @ApiProperty({
     description: 'Record format',
@@ -33,7 +33,7 @@ export class Record extends Document {
     example: RecordFormat.VINYL,
   })
   @Prop({ enum: RecordFormat, required: true })
-  format: RecordFormat;
+  format!: RecordFormat;
 
   @ApiProperty({
     description: 'Record category/genre',
@@ -41,27 +41,27 @@ export class Record extends Document {
     example: RecordCategory.ROCK,
   })
   @Prop({ enum: RecordCategory, required: true })
-  category: RecordCategory;
+  category!: RecordCategory;
 
   @ApiProperty({
     description: 'Creation date',
     example: '2024-01-01T00:00:00.000Z',
   })
   @Prop({ default: Date.now })
-  created: Date;
+  created!: Date;
 
   @ApiProperty({
     description: 'Last modification date',
     example: '2024-01-01T00:00:00.000Z',
   })
   @Prop({ default: Date.now })
-  lastModified: Date;
+  lastModified!: Date;
 
   @Prop({ required: true, select: false })
-  artistNormalized: string;
+  artistNormalized!: string;
 
   @Prop({ required: true, select: false })
-  albumNormalized: string;
+  albumNormalized!: string;
 
   @ApiProperty({
     description: 'MusicBrainz identifier',
@@ -77,7 +77,7 @@ export class Record extends Document {
     type: [String],
   })
   @Prop({ type: [String], default: [] })
-  tracklist: string[];
+  tracklist!: string[];
 }
 
 export const RecordSchema = SchemaFactory.createForClass(Record);

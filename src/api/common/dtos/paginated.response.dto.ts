@@ -2,16 +2,16 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class PaginatedResponseDTO<T> {
   @ApiProperty()
-  data: T[];
+  data!: T[];
 
   @ApiProperty({
     example: 'eyJfaWQiOiI1MDdmMWY3N2JjZjg2Y2Q3OTk0MzkwMTEifQ',
     nullable: true,
   })
-  nextCursor: string | null;
+  nextCursor!: string | null;
 
   @ApiProperty({ example: true })
-  hasMore: boolean;
+  hasMore!: boolean;
 
   static create<T>(
     data: T[],
