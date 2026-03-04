@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Record } from '../schemas/record.schema';
-import { Model } from 'mongoose';
+import { FilterQuery, Model } from 'mongoose';
 import { ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { CreateRecordRequestDTO } from '../dtos/create-record.request.dto';
 import { RecordCategory, RecordFormat } from '../schemas/record.enum';
@@ -18,9 +18,16 @@ import { UpdateRecordRequestDTO } from '../dtos/update-record.request.dto';
 
 @Controller('records')
 export class RecordController {
+  private static readonly DEFAULT_PAGE_SIZE = 50;
+  private static readonly MAX_PAGE_SIZE = 200;
+
   constructor(
     @InjectModel('Record') private readonly recordModel: Model<Record>,
   ) {}
+
+  private static escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
 
   @Post()
   @ApiOperation({ summary: 'Create a new record' })
@@ -101,45 +108,96 @@ export class RecordController {
     enum: RecordCategory,
     type: String,
   })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: `Max records to return (default ${RecordController.DEFAULT_PAGE_SIZE}, max ${RecordController.MAX_PAGE_SIZE})`,
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    description: 'Number of records to skip (default 0)',
+    type: Number,
+  })
   async findAll(
     @Query('q') q?: string,
     @Query('artist') artist?: string,
     @Query('album') album?: string,
     @Query('format') format?: RecordFormat,
     @Query('category') category?: RecordCategory,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ): Promise<Record[]> {
-    const allRecords = await this.recordModel.find().exec();
+    const conditions: FilterQuery<Record>[] = [];
 
-    const filteredRecords = allRecords.filter((record) => {
-      let match = true;
+    const normalizedQ = q?.trim();
+    if (normalizedQ) {
+      const searchRegex = new RegExp(
+        RecordController.escapeRegex(normalizedQ),
+        'i',
+      );
+      conditions.push({
+        $or: [
+          { artist: searchRegex },
+          { album: searchRegex },
+          { category: searchRegex },
+        ],
+      });
+    }
 
-      if (q) {
-        match =
-          match &&
-          (record.artist.includes(q) ||
-            record.album.includes(q) ||
-            record.category.includes(q));
-      }
+    const normalizedArtist = artist?.trim();
+    if (normalizedArtist) {
+      conditions.push({
+        artist: {
+          $regex: new RegExp(
+            RecordController.escapeRegex(normalizedArtist),
+            'i',
+          ),
+        },
+      });
+    }
 
-      if (artist) {
-        match = match && record.artist.includes(artist);
-      }
+    const normalizedAlbum = album?.trim();
+    if (normalizedAlbum) {
+      conditions.push({
+        album: {
+          $regex: new RegExp(
+            RecordController.escapeRegex(normalizedAlbum),
+            'i',
+          ),
+        },
+      });
+    }
 
-      if (album) {
-        match = match && record.album.includes(album);
-      }
+    if (format) {
+      conditions.push({ format });
+    }
 
-      if (format) {
-        match = match && record.format === format;
-      }
+    if (category) {
+      conditions.push({ category });
+    }
 
-      if (category) {
-        match = match && record.category === category;
-      }
+    const filters: FilterQuery<Record> =
+      conditions.length > 1
+        ? { $and: conditions }
+        : conditions[0] ?? {};
 
-      return match;
-    });
+    const parsedLimit = Number.parseInt(limit ?? '', 10);
+    const parsedOffset = Number.parseInt(offset ?? '', 10);
+    const { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } = RecordController;
+    const resolvedLimit =
+      Number.isNaN(parsedLimit) || parsedLimit <= 0
+        ? DEFAULT_PAGE_SIZE
+        : Math.min(parsedLimit, MAX_PAGE_SIZE);
+    const resolvedOffset =
+      Number.isNaN(parsedOffset) || parsedOffset < 0 ? 0 : parsedOffset;
 
-    return filteredRecords;
+    return this.recordModel
+      .find(filters)
+      .skip(resolvedOffset)
+      .limit(resolvedLimit)
+      .lean()
+      .exec();
   }
 }

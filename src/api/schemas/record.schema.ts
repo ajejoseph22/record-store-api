@@ -33,3 +33,15 @@ export class Record extends Document {
 }
 
 export const RecordSchema = SchemaFactory.createForClass(Record);
+
+RecordSchema.index(
+  { artist: 1, album: 1, format: 1 },
+  { unique: true, name: 'record_unique_artist_album_format' },
+);
+RecordSchema.index(
+  { format: 1, category: 1 },
+  { name: 'record_format_category' },
+);
+RecordSchema.index({ category: 1 }, { name: 'record_category' });
+RecordSchema.index({ artist: 1 }, { name: 'record_artist' });
+RecordSchema.index({ album: 1 }, { name: 'record_album' });
