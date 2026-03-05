@@ -6,7 +6,7 @@ services:
       mongo-init:
         condition: service_completed_successfully
     volumes:
-      - ./data.json:/data.json:ro
+      - ./scripts/seed/data.json:/data.json:ro
     command: >
       mongosh mongodb://mongodb:27017/records?replicaSet=rs0 --eval
       '

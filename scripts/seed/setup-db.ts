@@ -1,7 +1,8 @@
 import * as mongoose from 'mongoose';
-import { Record, RecordSchema } from './src/api/record/record.schema';
-import { RecordFormat, RecordCategory } from './src/api/record/record.enum';
+import { Record, RecordSchema } from '../../src/api/record/record.schema';
+import { RecordFormat, RecordCategory } from '../../src/api/record/record.enum';
 import * as fs from 'fs';
+import * as path from 'path';
 import * as dotenv from 'dotenv';
 import * as readline from 'readline';
 
@@ -30,7 +31,7 @@ async function setupDatabase() {
         rl.close();
 
         const data: SeedRecord[] = JSON.parse(
-          fs.readFileSync('data.json', 'utf-8'),
+          fs.readFileSync(path.join(__dirname, 'data.json'), 'utf-8'),
         );
         const recordModel: mongoose.Model<Record> = mongoose.model<Record>(
           'Record',
