@@ -1,10 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 @Injectable()
 export class CacheHelper {
-  private readonly logger = new Logger(CacheHelper.name);
   // Authoritative version counters — kept in-process to avoid the
   // async read-modify-write race that exists when versions live only
   // in cache-manager.  The cache is still written so that getVersion
@@ -14,7 +14,11 @@ export class CacheHelper {
   // atomic increment (e.g. Redis INCR).
   private readonly versions = new Map<string, number>();
 
-  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
+  constructor(
+    @InjectPinoLogger(CacheHelper.name)
+    private readonly logger: PinoLogger,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
 
   async get<T>(key: string): Promise<T | undefined> {
     try {

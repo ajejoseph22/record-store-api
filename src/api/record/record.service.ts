@@ -3,11 +3,11 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { Record } from './record.schema';
 import { CreateRecordRequestDTO } from './dtos/create-record.request.dto';
 import { UpdateRecordRequestDTO } from './dtos/update-record.request.dto';
@@ -27,9 +27,10 @@ export class RecordService {
   private static readonly DEFAULT_PAGE_SIZE = 50;
   private static readonly MAX_PAGE_SIZE = 200;
   static readonly NAMESPACE = 'records';
-  private readonly logger = new Logger(RecordService.name);
 
   constructor(
+    @InjectPinoLogger(RecordService.name)
+    private readonly logger: PinoLogger,
     @InjectModel(Record.name) private readonly recordModel: Model<Record>,
     private readonly cacheHelper: CacheHelper,
   ) {}

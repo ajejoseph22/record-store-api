@@ -37,12 +37,13 @@ describe('LoggingExceptionFilter', () => {
     filter.catch(exception, mockHost);
 
     expect(loggerErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('POST /records -> 500'),
-      expect.any(String),
-    );
-    expect(loggerErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Something broke'),
-      expect.any(String),
+      expect.objectContaining({
+        method: 'POST',
+        url: '/records',
+        statusCode: 500,
+        message: 'Something broke',
+        stack: expect.any(String),
+      }),
     );
     expect(superCatchSpy).toHaveBeenCalledWith(exception, mockHost);
   });
@@ -53,12 +54,13 @@ describe('LoggingExceptionFilter', () => {
     filter.catch(exception, mockHost);
 
     expect(loggerErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('POST /records -> 500'),
-      expect.any(String),
-    );
-    expect(loggerErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Unexpected failure'),
-      exception.stack,
+      expect.objectContaining({
+        method: 'POST',
+        url: '/records',
+        statusCode: 500,
+        message: 'Unexpected failure',
+        stack: exception.stack,
+      }),
     );
     expect(superCatchSpy).toHaveBeenCalledWith(exception, mockHost);
   });
@@ -69,8 +71,13 @@ describe('LoggingExceptionFilter', () => {
     filter.catch(exception, mockHost);
 
     expect(loggerErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('POST /records -> 500: raw string error'),
-      undefined,
+      expect.objectContaining({
+        method: 'POST',
+        url: '/records',
+        statusCode: 500,
+        message: 'raw string error',
+        stack: undefined,
+      }),
     );
     expect(superCatchSpy).toHaveBeenCalledWith(exception, mockHost);
   });

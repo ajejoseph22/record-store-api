@@ -33,6 +33,7 @@ services:
     volumes:
       - ./src:/app/src
     environment:
+      NODE_ENV: development
       LOG_LEVEL: debug
     depends_on:
       mongo-seed:

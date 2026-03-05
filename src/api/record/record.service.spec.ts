@@ -7,6 +7,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { getLoggerToken } from 'nestjs-pino';
 import { RecordService } from './record.service';
 import { Record, RecordSchema } from './record.schema';
 import { RecordFormat, RecordCategory } from './record.enum';
@@ -47,6 +48,17 @@ describe('RecordService', () => {
             del: jest.fn().mockResolvedValue(undefined),
             bumpVersion: jest.fn().mockResolvedValue(1),
             getVersion: jest.fn().mockResolvedValue(0),
+          },
+        },
+        {
+          provide: getLoggerToken(RecordService.name),
+          useValue: {
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            debug: jest.fn(),
+            trace: jest.fn(),
+            setContext: jest.fn(),
           },
         },
       ],

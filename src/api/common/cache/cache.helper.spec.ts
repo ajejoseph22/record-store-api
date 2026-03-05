@@ -1,7 +1,16 @@
 import { Test } from '@nestjs/testing';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Logger } from '@nestjs/common';
 import { CacheHelper } from './cache.helper';
+import { getLoggerToken } from 'nestjs-pino';
+
+const mockPinoLogger = {
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  trace: jest.fn(),
+  setContext: jest.fn(),
+};
 
 describe('CacheHelper', () => {
   let helper: CacheHelper;
@@ -19,13 +28,14 @@ describe('CacheHelper', () => {
     };
 
     const module = await Test.createTestingModule({
-      providers: [CacheHelper, { provide: CACHE_MANAGER, useValue: mockCache }],
+      providers: [
+        CacheHelper,
+        { provide: CACHE_MANAGER, useValue: mockCache },
+        { provide: getLoggerToken(CacheHelper.name), useValue: mockPinoLogger },
+      ],
     }).compile();
 
     helper = module.get(CacheHelper);
-
-    // Silence logger output during tests
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation();
   });
 
   afterEach(() => {
@@ -50,7 +60,7 @@ describe('CacheHelper', () => {
       const result = await helper.get('my-key');
 
       expect(result).toBeUndefined();
-      expect(Logger.prototype.warn).toHaveBeenCalled();
+      expect(mockPinoLogger.warn).toHaveBeenCalled();
     });
   });
 
@@ -65,7 +75,7 @@ describe('CacheHelper', () => {
       mockCache.set.mockRejectedValue(new Error('redis down'));
 
       await expect(helper.set('key', 'value')).resolves.toBeUndefined();
-      expect(Logger.prototype.warn).toHaveBeenCalled();
+      expect(mockPinoLogger.warn).toHaveBeenCalled();
     });
   });
 
@@ -80,7 +90,7 @@ describe('CacheHelper', () => {
       mockCache.del.mockRejectedValue(new Error('redis down'));
 
       await expect(helper.del('key')).resolves.toBeUndefined();
-      expect(Logger.prototype.warn).toHaveBeenCalled();
+      expect(mockPinoLogger.warn).toHaveBeenCalled();
     });
   });
 

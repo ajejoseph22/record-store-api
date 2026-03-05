@@ -1,10 +1,7 @@
-import {
-  Injectable,
-  Logger,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, FilterQuery, Model, Types } from 'mongoose';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { Order } from './order.schema';
 import { Record } from '../record/record.schema';
 import { CreateOrderRequestDTO } from './dtos/create-order.request.dto';
@@ -22,9 +19,9 @@ export class OrderService {
   private static readonly ORDERS_NAMESPACE = 'orders';
   private static readonly RECORDS_NAMESPACE = 'records';
 
-  private readonly logger = new Logger(OrderService.name);
-
   constructor(
+    @InjectPinoLogger(OrderService.name)
+    private readonly logger: PinoLogger,
     @InjectModel(Order.name) private readonly orderModel: Model<Order>,
     @InjectModel(Record.name) private readonly recordModel: Model<Record>,
     @InjectConnection() private readonly connection: Connection,
@@ -57,7 +54,7 @@ export class OrderService {
         return order;
       });
 
-      this.logger.log(
+      this.logger.info(
         `Order created: orderId=${result._id} recordId=${dto.recordId} qty=${dto.qty}`,
       );
       await Promise.all([

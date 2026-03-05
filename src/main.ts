@@ -3,21 +3,13 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { LogLevel, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
 import { LoggingExceptionFilter } from './api/common/filters/logging-exception.filter';
 
-type LogLevelKey = 'debug' | 'info';
-
-const LOG_LEVELS: Record<LogLevelKey, LogLevel[]> = {
-  debug: ['debug', 'log', 'warn', 'error', 'verbose'],
-  info: ['log', 'warn', 'error'],
-};
-
 async function bootstrap() {
-  const level = process.env.LOG_LEVEL || 'info';
-  const app = await NestFactory.create(AppModule, {
-    logger: LOG_LEVELS[level as LogLevelKey] ?? LOG_LEVELS.info,
-  });
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));
 
   const { httpAdapter } = app.get(HttpAdapterHost);
   app.useGlobalFilters(new LoggingExceptionFilter(httpAdapter));

@@ -46,5 +46,6 @@ services:
     environment:
       MONGO_URL: mongodb://mongodb:27017/records?replicaSet=rs0
       PORT: ${PORT:-3000}
+      NODE_ENV: production
     ports:
       - '${PORT:-3000}:${PORT:-3000}'

@@ -13,10 +13,14 @@ export class LoggingExceptionFilter extends BaseExceptionFilter {
       exception instanceof HttpException ? exception.getStatus() : 500;
 
     if (status >= 500) {
-      this.logger.error(
-        `${request.method} ${request.url} -> ${status}: ${exception instanceof Error ? exception.message : String(exception)}`,
-        exception instanceof Error ? exception.stack : undefined,
-      );
+      this.logger.error({
+        method: request.method,
+        url: request.url,
+        statusCode: status,
+        message:
+          exception instanceof Error ? exception.message : String(exception),
+        stack: exception instanceof Error ? exception.stack : undefined,
+      });
     }
 
     super.catch(exception, host);
