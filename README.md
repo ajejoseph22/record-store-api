@@ -1,6 +1,6 @@
 # Record Store API
 
-NestJS REST API for managing a vinyl/CD/cassette record store. Supports inventory management, order placement with transactional stock decrement, full-text search, cursor-based pagination, and MusicBrainz tracklist integration.
+NestJS REST API for managing a record store. Supports inventory management, order placement with transactional stock decrement, full-text search, cursor-based pagination, versioned caching and MusicBrainz tracklist integration.
 
 ## Prerequisites
 
